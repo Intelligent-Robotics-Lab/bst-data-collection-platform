@@ -30,6 +30,9 @@ Where documents conflict: product_plan governs scope/schedule, PRD governs accep
 - Perception data is logged even when missing/low-confidence; outages are logged rows, not gaps.
 - Validate required fields; autosave where reasonable; never let a session "complete" with
   required steps missing.
+- NEVER run rm, drop, truncate, or any destructive command against data/ or data/bst.db.
+  For throwaway verification, set DB_PATH to a temp file (e.g. /tmp/bst_verify.db). The real
+  database is irreplaceable participant data.
 
 ## Runtime environment (verified Day 1)
 - Target: native Linux server (Ubuntu 22.04), runs as user pourya, not root

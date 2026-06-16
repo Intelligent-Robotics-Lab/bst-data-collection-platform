@@ -39,7 +39,12 @@ class Settings(BaseSettings):
     EXPORTS_DIR: Path = PROJECT_ROOT / "data" / "exports"
     LOGS_DIR: Path = PROJECT_ROOT / "data" / "logs"
     SESSIONS_DIR: Path = PROJECT_ROOT / "data" / "sessions"
+    BACKUPS_DIR: Path = PROJECT_ROOT / "data" / "backups"
     CONFIGS_DIR: Path = PROJECT_ROOT / "configs"
+
+    # Timestamped DB backups: on startup (pre-create_all) and on session
+    # completion. Keep the last N copies; backups are non-destructive file copies.
+    DB_BACKUP_KEEP: int = 20
 
     # --- Perception orchestrator (read-only; see perception_integration.md) ---
     PERCEPTION_BASE_URL: str = "http://localhost:8000"
@@ -52,6 +57,10 @@ class Settings(BaseSettings):
     @property
     def db_path(self) -> Path:
         return _resolve(self.DB_PATH)
+
+    @property
+    def backups_dir(self) -> Path:
+        return _resolve(self.BACKUPS_DIR)
 
     @property
     def database_url(self) -> str:
@@ -70,6 +79,7 @@ class Settings(BaseSettings):
             _resolve(self.EXPORTS_DIR),
             _resolve(self.LOGS_DIR),
             _resolve(self.SESSIONS_DIR),
+            self.backups_dir,
         ]
 
     def ensure_directories(self) -> None:

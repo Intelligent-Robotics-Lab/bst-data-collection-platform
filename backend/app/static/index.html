@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Participant Intake - BST Data Collection</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 2rem auto; padding: 0 1rem; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    form { display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid #ddd; border-radius: 8px; }
+    label { display: grid; gap: 0.25rem; font-size: 0.9rem; }
+    input, select, button { font-size: 1rem; padding: 0.5rem; }
+    button { cursor: pointer; background: #1a5; color: #fff; border: none; border-radius: 6px; }
+    button:hover { background: #178; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 0.4rem; border-bottom: 1px solid #eee; }
+    #msg { margin-top: 0.75rem; font-size: 0.9rem; min-height: 1.2rem; }
+    .err { color: #c00; }
+    .ok { color: #1a5; }
+  </style>
+</head>
+<body>
+  <h1>Participant Intake</h1>
+  <p>Minimal Day-2 intake. Research tables store the participant ID only (no names).</p>
+
+  <form id="intake-form">
+    <label>Participant ID
+      <input id="participant_id" name="participant_id" required placeholder="P001" autocomplete="off" />
+    </label>
+    <label>Consent status
+      <select id="consent_status" name="consent_status">
+        <option value="consented">consented</option>
+        <option value="not_consented" selected>not_consented</option>
+        <option value="withdrawn">withdrawn</option>
+      </select>
+    </label>
+    <label>Media-recording consent
+      <select id="media_recording_consent" name="media_recording_consent">
+        <option value="granted">granted</option>
+        <option value="denied">denied</option>
+        <option value="withdrawn">withdrawn</option>
+        <option value="not_asked" selected>not_asked</option>
+      </select>
+    </label>
+    <button type="submit">Register participant</button>
+  </form>
+
+  <div id="msg"></div>
+
+  <table>
+    <thead>
+      <tr><th>Participant ID</th><th>Consent</th><th>Media consent</th><th>Created (UTC)</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <script>
+    const API = window.location.origin;
+    const msg = document.getElementById("msg");
+
+    async function refresh() {
+      const res = await fetch(`${API}/participants`);
+      const list = await res.json();
+      const rows = document.getElementById("rows");
+      rows.innerHTML = "";
+      for (const p of list) {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          `<td>${p.participant_id}</td><td>${p.consent_status}</td>` +
+          `<td>${p.media_recording_consent}</td><td>${p.created_at}</td>`;
+        rows.appendChild(tr);
+      }
+    }
+
+    document.getElementById("intake-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = "";
+      msg.className = "";
+      const payload = {
+        participant_id: document.getElementById("participant_id").value.trim(),
+        consent_status: document.getElementById("consent_status").value,
+        media_recording_consent: document.getElementById("media_recording_consent").value,
+      };
+      const res = await fetch(`${API}/participants`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        msg.textContent = `Registered ${payload.participant_id}.`;
+        msg.className = "ok";
+        document.getElementById("intake-form").reset();
+        refresh();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        msg.textContent = `Error: ${err.detail || res.status}`;
+        msg.className = "err";
+      }
+    });
+
+    refresh();
+  </script>
+</body>
+</html>

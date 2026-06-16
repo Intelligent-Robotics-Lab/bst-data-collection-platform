@@ -5,3 +5,6 @@ pydantic==2.10.4
 pydantic-settings==2.7.0
 PyYAML==6.0.2
 httpx==0.28.1
+
+# dev / test
+pytest==8.3.4

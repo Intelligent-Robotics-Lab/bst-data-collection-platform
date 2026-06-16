@@ -22,6 +22,7 @@ dist/
 /data/exports/*
 /data/logs/*
 /data/sessions/*
+/data/backups/*
 !**/.gitkeep
 
 # OS
