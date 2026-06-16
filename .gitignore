@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Local environment (paths/ports are machine-specific; commit .env.example only)
+.env
+
+# Local data (never commit raw research data or the DB)
+/data/bst.db
+/data/bst.db-journal
+/data/bst.db-wal
+/data/recordings/*
+/data/exports/*
+/data/logs/*
+/data/sessions/*
+!**/.gitkeep
+
+# OS
+.DS_Store
