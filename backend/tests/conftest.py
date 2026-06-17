@@ -14,10 +14,13 @@ from sqlalchemy.pool import StaticPool
 from app.db.session import get_db
 from app.main import app
 from app.models import Base
+from app.services.protocol import register_protocols
 
 
 @pytest.fixture
-def client():
+def _session_factory():
+    """Fresh in-memory DB + schema, shared via a single connection (StaticPool).
+    Yields a sessionmaker so multiple fixtures can hit the same in-memory DB."""
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -26,9 +29,16 @@ def client():
     )
     Base.metadata.create_all(bind=engine)
     TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    try:
+        yield TestingSessionLocal
+    finally:
+        engine.dispose()
 
+
+@pytest.fixture
+def client(_session_factory):
     def override_get_db():
-        db = TestingSessionLocal()
+        db = _session_factory()
         try:
             yield db
         finally:
@@ -41,4 +51,16 @@ def client():
         yield TestClient(app)
     finally:
         app.dependency_overrides.clear()
-        engine.dispose()
+
+
+@pytest.fixture
+def protocol_id(_session_factory):
+    """Register the on-disk protocol configs into the test DB (mirrors startup)
+    and return the registered protocol_id for the placeholder protocol."""
+    db = _session_factory()
+    try:
+        protos = register_protocols(db)
+        assert protos, "no protocol configs registered; expected bst_dtt_v1"
+        return protos[0].protocol_id
+    finally:
+        db.close()

@@ -123,8 +123,9 @@ class DttTrial(Base):
         ForeignKey("dtt_phases.phase_id"), nullable=True
     )
     phase_key: Mapped[str | None] = mapped_column(String, nullable=True)  # denormalized
+    sd_id: Mapped[str | None] = mapped_column(String, nullable=True)  # chosen SD from protocol config
     target_skill: Mapped[str | None] = mapped_column(String, nullable=True)
-    instruction: Mapped[str | None] = mapped_column(String, nullable=True)  # SD
+    instruction: Mapped[str | None] = mapped_column(String, nullable=True)  # SD label (human-readable)
     participant_response: Mapped[str | None] = mapped_column(String, nullable=True)
     response_correctness: Mapped[str | None] = mapped_column(String, nullable=True)
     response_latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)

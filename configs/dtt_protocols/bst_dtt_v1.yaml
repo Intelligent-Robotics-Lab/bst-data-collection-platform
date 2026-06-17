@@ -1,0 +1,39 @@
+# Placeholder BST/DTT protocol. Participant-independent: the 6-loop structure
+# (function_class per loop, sequence) is NOT here -- it depends on the
+# participant's pb_order_group and lives in dtt_loops (session/loop setup).
+# Swap in real phases / skills / steps / SDs by editing this file; no code change.
+protocol_key: bst_dtt_v1
+version: "0.1.0-placeholder"
+title: "BST/DTT placeholder protocol"
+
+prompt_levels: [independent, gestural, verbal, partial_physical, full_physical]
+
+sds:                      # the six discriminative stimuli for the rehearsal phase
+  - sd_id: sd_1
+    label: "SD 1 (placeholder)"
+  - sd_id: sd_2
+    label: "SD 2 (placeholder)"
+  - sd_id: sd_3
+    label: "SD 3 (placeholder)"
+  - sd_id: sd_4
+    label: "SD 4 (placeholder)"
+  - sd_id: sd_5
+    label: "SD 5 (placeholder)"
+  - sd_id: sd_6
+    label: "SD 6 (placeholder)"
+
+phases:
+  - phase_key: baseline
+    label: "Baseline"
+    order_index: 1
+    target_skills:
+      - skill_id: skill_a
+        label: "Skill A (placeholder)"
+        steps: [step_1, step_2, step_3]    # ordered step IDs for missed/extra-step validation
+  - phase_key: acquisition
+    label: "Acquisition"
+    order_index: 2
+    target_skills:
+      - skill_id: skill_a
+        label: "Skill A (placeholder)"
+        steps: [step_1, step_2, step_3]

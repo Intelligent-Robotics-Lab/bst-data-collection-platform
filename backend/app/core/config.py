@@ -63,6 +63,10 @@ class Settings(BaseSettings):
         return _resolve(self.BACKUPS_DIR)
 
     @property
+    def configs_dir(self) -> Path:
+        return _resolve(self.CONFIGS_DIR)
+
+    @property
     def database_url(self) -> str:
         return f"sqlite:///{self.db_path}"
 
