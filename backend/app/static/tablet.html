@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>BST Study - Participant</title>
+  <style>
+    :root { --accent: #1a5; --accent-dark: #178; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif; margin: 0; color: #1a1a1a;
+      background: #f4f6f8; -webkit-tap-highlight-color: transparent;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 1.25rem; }
+    h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+    .sub { color: #667; font-size: 0.95rem; margin: 0 0 1rem; }
+    .card {
+      background: #fff; border: 1px solid #e2e6ea; border-radius: 12px;
+      padding: 1rem 1.1rem; margin-bottom: 0.9rem;
+    }
+    .qtext { font-size: 1.1rem; margin: 0 0 0.7rem; }
+    .req { color: #c00; }
+    /* Likert / choice options */
+    .opts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+    .opt {
+      flex: 1 1 auto; min-width: 3rem; text-align: center;
+      border: 2px solid #cdd5db; border-radius: 10px; padding: 0.7rem 0.4rem;
+      font-size: 1.05rem; cursor: pointer; user-select: none; background: #fff;
+    }
+    .opt.selected { border-color: var(--accent); background: #e8f7ef; font-weight: 600; }
+    .anchors { display: flex; justify-content: space-between; color: #789; font-size: 0.8rem; margin-top: 0.35rem; }
+    textarea, input[type=number] {
+      width: 100%; font-size: 1.05rem; padding: 0.6rem; border: 2px solid #cdd5db;
+      border-radius: 10px; font-family: inherit;
+    }
+    /* Sliders */
+    .slider-row { margin-bottom: 1.1rem; }
+    .slider-label { display: flex; justify-content: space-between; font-size: 1rem; margin-bottom: 0.2rem; }
+    .slider-val { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent-dark); }
+    input[type=range] { width: 100%; height: 2.2rem; }
+    .poles { display: flex; justify-content: space-between; color: #789; font-size: 0.8rem; }
+    button.submit {
+      width: 100%; font-size: 1.2rem; padding: 0.9rem; margin-top: 0.4rem;
+      background: var(--accent); color: #fff; border: none; border-radius: 12px; cursor: pointer;
+    }
+    button.submit:active { background: var(--accent-dark); }
+    button.submit:disabled { background: #9bb; cursor: default; }
+    #status { text-align: center; padding: 3rem 1rem; color: #667; font-size: 1.15rem; }
+    #msg { text-align: center; min-height: 1.4rem; font-size: 1rem; margin-top: 0.6rem; }
+    .err { color: #c00; }
+    .ok { color: var(--accent-dark); }
+    .saving { color: #889; font-size: 0.85rem; text-align: right; height: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div id="status">Connecting…</div>
+    <div id="form-root" hidden>
+      <h1 id="form-title"></h1>
+      <p class="sub" id="form-sub"></p>
+      <div class="saving" id="saving"></div>
+      <div id="items"></div>
+      <button class="submit" id="submit-btn">Submit</button>
+      <div id="msg"></div>
+    </div>
+  </div>
+
+  <script>
+    const API = window.location.origin;
+    const POLL_MS = 1500;
+
+    // Current rendered assignment + local answer state.
+    let shownRevision = -1;
+    let current = null;       // assignment
+    let config = null;        // questionnaire render spec
+    let answers = {};         // item_id -> value (questionnaire)
+    let submitted = false;    // lock after a successful submit of this revision
+    let saveTimer = null;
+
+    const $ = (id) => document.getElementById(id);
+
+    async function poll() {
+      try {
+        const a = await (await fetch(`${API}/tablet/assignment`)).json();
+        if (a.revision !== shownRevision) {
+          shownRevision = a.revision;
+          await render(a);
+        }
+      } catch (e) {
+        // Backend momentarily unreachable: keep the current screen, keep polling.
+      } finally {
+        setTimeout(poll, POLL_MS);
+      }
+    }
+
+    async function render(a) {
+      current = a; config = null; answers = {}; submitted = false;
+      $("msg").textContent = ""; $("msg").className = ""; $("saving").textContent = "";
+      if (a.form_type === "questionnaire") return renderQuestionnaire(a);
+      if (a.form_type === "self_report") return renderSelfReport(a);
+      return renderIdle(a);
+    }
+
+    function renderIdle(a) {
+      $("form-root").hidden = true;
+      $("status").hidden = false;
+      $("status").textContent = a.message || "Please wait for the next form.";
+    }
+
+    function showForm(title, sub) {
+      $("status").hidden = true;
+      $("form-root").hidden = false;
+      $("form-title").textContent = title || "";
+      $("form-sub").textContent = sub || "";
+      $("items").innerHTML = "";
+      $("submit-btn").disabled = false;
+      $("submit-btn").textContent = "Submit";
+    }
+
+    // ---- Questionnaire ----
+    async function renderQuestionnaire(a) {
+      const v = a.questionnaire_version ? `?version=${encodeURIComponent(a.questionnaire_version)}` : "";
+      config = await (await fetch(`${API}/questionnaires/${a.questionnaire_key}/config${v}`)).json();
+      showForm(config.title || a.questionnaire_key, "Please answer every required question.");
+
+      // Restore any saved answers for this session+questionnaire.
+      try {
+        const r = await (await fetch(
+          `${API}/sessions/${encodeURIComponent(a.session_id)}/questionnaires/${a.questionnaire_key}/responses${v}`
+        )).json();
+        for (const [item_id, rec] of Object.entries(r.answers || {})) answers[item_id] = rec.value;
+        if (r.finalized) {
+          submitted = true;
+          $("submit-btn").disabled = true;
+          $("submit-btn").textContent = "Already submitted";
+          $("msg").textContent = "This questionnaire was already submitted.";
+          $("msg").className = "ok";
+        }
+      } catch (e) { /* no prior answers */ }
+
+      const items = $("items");
+      for (const it of config.items) items.appendChild(renderItem(it));
+    }
+
+    function renderItem(it) {
+      const card = document.createElement("div");
+      card.className = "card";
+      const q = document.createElement("p");
+      q.className = "qtext";
+      q.innerHTML = (it.text || it.item_id) + (it.required ? ' <span class="req">*</span>' : "");
+      card.appendChild(q);
+
+      const setVal = (val, render) => { answers[it.item_id] = val; render(); scheduleSave(); };
+
+      if (it.type === "likert" || it.type === "single_choice") {
+        const opts = document.createElement("div");
+        opts.className = "opts";
+        const choices = it.type === "likert"
+          ? rangeChoices(it.scale)
+          : (it.options || []).map(o => ({ value: o.value, label: o.label }));
+        const draw = () => [...opts.children].forEach((el, i) =>
+          el.classList.toggle("selected", String(choices[i].value) === String(answers[it.item_id])));
+        choices.forEach(c => {
+          const el = document.createElement("div");
+          el.className = "opt"; el.textContent = c.label;
+          el.onclick = () => setVal(c.value, draw);
+          opts.appendChild(el);
+        });
+        card.appendChild(opts);
+        if (it.type === "likert" && it.scale && it.scale.anchors) {
+          const anc = document.createElement("div");
+          anc.className = "anchors";
+          const ks = Object.keys(it.scale.anchors).map(Number).sort((a, b) => a - b);
+          const lo = document.createElement("span"), hi = document.createElement("span");
+          lo.textContent = it.scale.anchors[ks[0]]; hi.textContent = it.scale.anchors[ks[ks.length - 1]];
+          anc.appendChild(lo); anc.appendChild(hi); card.appendChild(anc);
+        }
+        draw();
+      } else if (it.type === "multi_choice") {
+        const opts = document.createElement("div");
+        opts.className = "opts";
+        if (!Array.isArray(answers[it.item_id])) answers[it.item_id] = answers[it.item_id] || [];
+        const draw = () => [...opts.children].forEach((el, i) =>
+          el.classList.toggle("selected", (answers[it.item_id] || []).includes(it.options[i].value)));
+        (it.options || []).forEach(o => {
+          const el = document.createElement("div");
+          el.className = "opt"; el.textContent = o.label;
+          el.onclick = () => {
+            const set = new Set(answers[it.item_id] || []);
+            set.has(o.value) ? set.delete(o.value) : set.add(o.value);
+            setVal([...set], draw);
+          };
+          opts.appendChild(el);
+        });
+        card.appendChild(opts); draw();
+      } else if (it.type === "integer" || it.type === "number") {
+        const inp = document.createElement("input");
+        inp.type = "number";
+        if (it.type === "integer") inp.step = "1";
+        if (it.min != null) inp.min = it.min;
+        if (it.max != null) inp.max = it.max;
+        if (answers[it.item_id] != null) inp.value = answers[it.item_id];
+        inp.oninput = () => { answers[it.item_id] = inp.value === "" ? undefined : Number(inp.value); scheduleSave(); };
+        card.appendChild(inp);
+      } else { // text
+        const ta = document.createElement("textarea");
+        ta.rows = 3;
+        if (answers[it.item_id] != null) ta.value = answers[it.item_id];
+        ta.oninput = () => { answers[it.item_id] = ta.value; scheduleSave(); };
+        card.appendChild(ta);
+      }
+      return card;
+    }
+
+    function rangeChoices(scale) {
+      const out = [];
+      for (let i = scale.min; i <= scale.max; i++) out.push({ value: i, label: String(i) });
+      return out;
+    }
+
+    // Drop undefined/empty answers before sending.
+    function collectAnswers() {
+      const out = {};
+      for (const [k, v] of Object.entries(answers)) {
+        if (v === undefined || v === null || v === "") continue;
+        if (Array.isArray(v) && v.length === 0) continue;
+        out[k] = v;
+      }
+      return out;
+    }
+
+    function scheduleSave() {
+      if (submitted || !current) return;
+      if (current.form_type !== "questionnaire" && current.form_type !== "self_report") return;
+      $("saving").textContent = "saving…";
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(autosave, 800);
+    }
+
+    async function autosave() {
+      if (submitted || !current) return;
+      if (current.form_type === "questionnaire") return autosaveQuestionnaire();
+      if (current.form_type === "self_report") return autosaveSelfReport();
+    }
+
+    async function autosaveQuestionnaire() {
+      const v = current.questionnaire_version ? `?version=${encodeURIComponent(current.questionnaire_version)}` : "";
+      try {
+        const res = await fetch(
+          `${API}/sessions/${encodeURIComponent(current.session_id)}/questionnaires/${current.questionnaire_key}/autosave${v}`,
+          { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ answers: collectAnswers() }) });
+        $("saving").textContent = res.ok ? "saved" : "";
+      } catch (e) { $("saving").textContent = ""; }
+    }
+
+    async function autosaveSelfReport() {
+      // Send context + all nine sliders (0 is a real neutral value, never dropped).
+      const body = Object.assign({}, current.self_report_context || {}, answers);
+      try {
+        const res = await fetch(
+          `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports/autosave`,
+          { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body) });
+        $("saving").textContent = res.ok ? "saved" : "";
+      } catch (e) { $("saving").textContent = ""; }
+    }
+
+    // ---- Self-report ----
+    const SLIDERS = [
+      ["pleasure", "Unpleasant", "Pleasant"],
+      ["arousal", "Calm", "Excited"],
+      ["dominance", "Controlled", "In control"],
+      ["confidence", "Not confident", "Very confident"],
+      ["frustration", "Not frustrated", "Very frustrated"],
+      ["engagement", "Disengaged", "Engaged"],
+      ["perceived_challenge", "Too easy", "Too hard"],
+      ["perceived_support", "Unsupported", "Supported"],
+      ["cognitive_load", "Low effort", "High effort"],
+    ];
+
+    async function renderSelfReport(a) {
+      showForm("How are you feeling right now?", "Slide each bar. Center means neutral.");
+      answers = {};
+      const rngs = {}, vals = {};
+      const items = $("items");
+      for (const [key, lo, hi] of SLIDERS) {
+        answers[key] = 0;
+        const card = document.createElement("div");
+        card.className = "card slider-row";
+        const lab = document.createElement("div");
+        lab.className = "slider-label";
+        const name = document.createElement("span"); name.textContent = prettyName(key);
+        const val = document.createElement("span"); val.className = "slider-val"; val.textContent = "0";
+        lab.appendChild(name); lab.appendChild(val);
+        const rng = document.createElement("input");
+        rng.type = "range"; rng.min = -5; rng.max = 5; rng.step = 0.1; rng.value = 0;
+        rng.oninput = () => {
+          answers[key] = Number(rng.value);
+          val.textContent = Number(rng.value).toFixed(1);
+          scheduleSave();
+        };
+        rngs[key] = rng; vals[key] = val;
+        const poles = document.createElement("div");
+        poles.className = "poles";
+        const ls = document.createElement("span"); ls.textContent = lo;
+        const hs = document.createElement("span"); hs.textContent = hi;
+        poles.appendChild(ls); poles.appendChild(hs);
+        card.appendChild(lab); card.appendChild(rng); card.appendChild(poles);
+        items.appendChild(card);
+      }
+
+      // Restore an autosaved draft for this exact context (refresh-restore).
+      try {
+        const qs = new URLSearchParams();
+        const ctx = a.self_report_context || {};
+        for (const k of ["loop_index", "phase", "timepoint", "function_class",
+                         "is_problem", "sequence_position", "before_after_robot_action", "trial_id"]) {
+          if (ctx[k] !== undefined && ctx[k] !== null) qs.set(k, ctx[k]);
+        }
+        const d = await (await fetch(
+          `${API}/sessions/${encodeURIComponent(a.session_id)}/self-reports/draft?${qs}`)).json();
+        if (d.found) {
+          for (const [k, v] of Object.entries(d.sliders || {})) {
+            if (rngs[k]) { answers[k] = v; rngs[k].value = v; vals[k].textContent = Number(v).toFixed(1); }
+          }
+        }
+      } catch (e) { /* no prior draft */ }
+    }
+
+    function prettyName(k) {
+      return k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    // ---- Submit ----
+    $("submit-btn").onclick = async () => {
+      if (!current || submitted) return;
+      $("submit-btn").disabled = true;
+      $("msg").textContent = ""; $("msg").className = "";
+      try {
+        if (current.form_type === "questionnaire") await submitQuestionnaire();
+        else if (current.form_type === "self_report") await submitSelfReport();
+      } catch (e) {
+        $("msg").textContent = "Network error; please tell the experimenter.";
+        $("msg").className = "err";
+        $("submit-btn").disabled = false;
+      }
+    };
+
+    async function submitQuestionnaire() {
+      const v = current.questionnaire_version ? `?version=${encodeURIComponent(current.questionnaire_version)}` : "";
+      const res = await fetch(
+        `${API}/sessions/${encodeURIComponent(current.session_id)}/questionnaires/${current.questionnaire_key}/submit${v}`,
+        { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers: collectAnswers() }) });
+      handleSubmitResult(res, "Thank you. Your answers were submitted.");
+    }
+
+    async function submitSelfReport() {
+      const ctx = current.self_report_context || {};
+      const body = Object.assign({}, ctx, answers);
+      const res = await fetch(
+        `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      handleSubmitResult(res, "Thank you. Your report was submitted.");
+    }
+
+    async function handleSubmitResult(res, okText) {
+      if (res.ok) {
+        submitted = true;
+        $("submit-btn").textContent = "Submitted";
+        $("msg").textContent = okText; $("msg").className = "ok";
+      } else {
+        const err = await res.json().catch(() => ({}));
+        const detail = typeof err.detail === "string" ? err.detail : "Please check your answers.";
+        $("msg").textContent = detail; $("msg").className = "err";
+        $("submit-btn").disabled = false;
+      }
+    }
+
+    poll();
+  </script>
+</body>
+</html>

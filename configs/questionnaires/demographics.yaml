@@ -1,0 +1,127 @@
+# Demographics + prior-experience intake (pre-session).
+#
+# These are study-authored fields (NOT a copyrighted instrument), so the display
+# text here is real. Item IDs are stable and independent of the display text.
+# Adding/editing an item is a config change only; the tablet renders it on the
+# next backend restart (no code change).
+questionnaire_key: demographics
+version: "1.0.0"
+title: "Demographics and Background"
+timepoint: pre
+scale_type: mixed
+
+items:
+  - item_id: dem_age
+    index: 1
+    type: integer
+    text: "Age (in years)"
+    required: true
+    min: 18
+    max: 120
+
+  - item_id: dem_gender
+    index: 2
+    type: single_choice
+    text: "Gender"
+    required: true
+    options:
+      - {value: woman, label: "Woman"}
+      - {value: man, label: "Man"}
+      - {value: non_binary, label: "Non-binary"}
+      - {value: self_describe, label: "Prefer to self-describe"}
+      - {value: no_answer, label: "Prefer not to answer"}
+
+  - item_id: dem_education
+    index: 3
+    type: single_choice
+    text: "Highest level of education completed"
+    required: true
+    options:
+      - {value: high_school, label: "High school or equivalent"}
+      - {value: some_college, label: "Some college"}
+      - {value: bachelors, label: "Bachelor's degree"}
+      - {value: masters, label: "Master's degree"}
+      - {value: doctorate, label: "Doctorate or professional degree"}
+      - {value: other, label: "Other"}
+
+  - item_id: dem_prior_robot_experience
+    index: 4
+    type: single_choice
+    text: "How much prior experience do you have interacting with robots?"
+    required: true
+    options:
+      - {value: none, label: "None"}
+      - {value: a_little, label: "A little"}
+      - {value: moderate, label: "Moderate"}
+      - {value: extensive, label: "Extensive"}
+
+  - item_id: dem_prior_teaching_experience
+    index: 5
+    type: single_choice
+    text: "How much prior experience do you have teaching or instructing others?"
+    required: true
+    options:
+      - {value: none, label: "None"}
+      - {value: a_little, label: "A little"}
+      - {value: moderate, label: "Moderate"}
+      - {value: extensive, label: "Extensive"}
+
+  - item_id: dem_prior_aba_bst_dtt_experience
+    index: 6
+    type: single_choice
+    text: "Do you have prior experience with ABA, BST, or DTT methods?"
+    required: true
+    options:
+      - {value: none, label: "None"}
+      - {value: trained, label: "Some formal training"}
+      - {value: practitioner, label: "I have practiced these methods"}
+
+  - item_id: dem_prior_autism_intervention_experience
+    index: 7
+    type: single_choice
+    text: "Do you have prior experience with autism intervention?"
+    required: true
+    options:
+      - {value: none, label: "None"}
+      - {value: some, label: "Some"}
+      - {value: extensive, label: "Extensive"}
+
+  - item_id: dem_prior_caregiving_experience
+    index: 8
+    type: single_choice
+    text: "Do you have prior caregiving experience?"
+    required: true
+    options:
+      - {value: none, label: "None"}
+      - {value: some, label: "Some"}
+      - {value: extensive, label: "Extensive"}
+
+  - item_id: dem_prior_clinical_training
+    index: 9
+    type: single_choice
+    text: "Do you have prior clinical training?"
+    required: true
+    options:
+      - {value: none, label: "None"}
+      - {value: some, label: "Some"}
+      - {value: extensive, label: "Extensive"}
+
+  - item_id: dem_baseline_confidence
+    index: 10
+    type: likert
+    text: "Right now, how confident do you feel about teaching a skill to the robot?"
+    required: true
+    scale:
+      type: likert
+      min: 1
+      max: 7
+      anchors:
+        1: "Not at all confident"
+        4: "Moderately confident"
+        7: "Extremely confident"
+
+  - item_id: dem_baseline_emotional_state
+    index: 11
+    type: text
+    text: "In a few words, how are you feeling right now?"
+    required: false

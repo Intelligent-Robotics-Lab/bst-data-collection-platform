@@ -18,8 +18,11 @@ from app.api import (
     notes,
     participants,
     protocols,
+    questionnaires,
     robot_events,
+    self_reports,
     sessions,
+    tablet,
     trials,
 )
 from app.core.config import settings
@@ -28,6 +31,7 @@ from app.db.session import SessionLocal, engine
 from app.models import Base
 from app.services.backup import backup_database
 from app.services.protocol import register_protocols
+from app.services.questionnaire import register_questionnaires
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -43,6 +47,9 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         register_protocols(db)
+        # Register questionnaire configs (additive/idempotent) so the tablet can
+        # render them and the experimenter can discover questionnaire keys.
+        register_questionnaires(db)
     finally:
         db.close()
     yield
@@ -69,6 +76,10 @@ app.include_router(sessions.router)
 app.include_router(notes.router)
 app.include_router(robot_events.router)
 app.include_router(trials.router)
+app.include_router(questionnaires.router)
+app.include_router(questionnaires.responses_router)
+app.include_router(self_reports.router)
+app.include_router(tablet.router)
 
 # Minimal participant-intake UI (interim; superseded by the React+Vite app in a
 # later phase). Served at /ui/.

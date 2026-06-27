@@ -1,0 +1,58 @@
+# Big Five Inventory-2 Short Form (BFI-2-S; Soto & John, 2017). 30 items, 5-point.
+#
+# RESEARCH-INTEGRITY NOTE (CLAUDE.md + requirements.md): the official BFI-2-S
+# item wording is copyrighted and is NOT reproduced here. Each item has a stable
+# item_id and a neutral placeholder `text`; drop the official wording into each
+# `text` to run the real instrument (config edit only, no code change).
+#
+# The five domains (6 items each) are encoded as factual metadata in contiguous
+# blocks. The official BFI-2-S interleaves items and reverse-keys several of
+# them; confirm the exact item order and reverse-scoring keys against the
+# published instrument when inserting the real wording. The engine does not
+# score (scoring is post hoc per PRD), so this metadata is informational only.
+questionnaire_key: bfi2s
+version: "1.0.0"
+title: "Big Five Inventory-2 Short Form (BFI-2-S)"
+timepoint: pre
+scale_type: likert_5
+
+response_scale:
+  type: likert
+  min: 1
+  max: 5
+  anchors:
+    1: "disagree strongly"
+    3: "neutral; no opinion"
+    5: "agree strongly"
+
+items:
+  - {item_id: bfi_01, index: 1,  domain: extraversion,         text: "BFI-2-S item 1 (placeholder; insert official wording)"}
+  - {item_id: bfi_02, index: 2,  domain: extraversion,         text: "BFI-2-S item 2 (placeholder; insert official wording)"}
+  - {item_id: bfi_03, index: 3,  domain: extraversion,         text: "BFI-2-S item 3 (placeholder; insert official wording)"}
+  - {item_id: bfi_04, index: 4,  domain: extraversion,         text: "BFI-2-S item 4 (placeholder; insert official wording)"}
+  - {item_id: bfi_05, index: 5,  domain: extraversion,         text: "BFI-2-S item 5 (placeholder; insert official wording)"}
+  - {item_id: bfi_06, index: 6,  domain: extraversion,         text: "BFI-2-S item 6 (placeholder; insert official wording)"}
+  - {item_id: bfi_07, index: 7,  domain: agreeableness,        text: "BFI-2-S item 7 (placeholder; insert official wording)"}
+  - {item_id: bfi_08, index: 8,  domain: agreeableness,        text: "BFI-2-S item 8 (placeholder; insert official wording)"}
+  - {item_id: bfi_09, index: 9,  domain: agreeableness,        text: "BFI-2-S item 9 (placeholder; insert official wording)"}
+  - {item_id: bfi_10, index: 10, domain: agreeableness,        text: "BFI-2-S item 10 (placeholder; insert official wording)"}
+  - {item_id: bfi_11, index: 11, domain: agreeableness,        text: "BFI-2-S item 11 (placeholder; insert official wording)"}
+  - {item_id: bfi_12, index: 12, domain: agreeableness,        text: "BFI-2-S item 12 (placeholder; insert official wording)"}
+  - {item_id: bfi_13, index: 13, domain: conscientiousness,    text: "BFI-2-S item 13 (placeholder; insert official wording)"}
+  - {item_id: bfi_14, index: 14, domain: conscientiousness,    text: "BFI-2-S item 14 (placeholder; insert official wording)"}
+  - {item_id: bfi_15, index: 15, domain: conscientiousness,    text: "BFI-2-S item 15 (placeholder; insert official wording)"}
+  - {item_id: bfi_16, index: 16, domain: conscientiousness,    text: "BFI-2-S item 16 (placeholder; insert official wording)"}
+  - {item_id: bfi_17, index: 17, domain: conscientiousness,    text: "BFI-2-S item 17 (placeholder; insert official wording)"}
+  - {item_id: bfi_18, index: 18, domain: conscientiousness,    text: "BFI-2-S item 18 (placeholder; insert official wording)"}
+  - {item_id: bfi_19, index: 19, domain: negative_emotionality, text: "BFI-2-S item 19 (placeholder; insert official wording)"}
+  - {item_id: bfi_20, index: 20, domain: negative_emotionality, text: "BFI-2-S item 20 (placeholder; insert official wording)"}
+  - {item_id: bfi_21, index: 21, domain: negative_emotionality, text: "BFI-2-S item 21 (placeholder; insert official wording)"}
+  - {item_id: bfi_22, index: 22, domain: negative_emotionality, text: "BFI-2-S item 22 (placeholder; insert official wording)"}
+  - {item_id: bfi_23, index: 23, domain: negative_emotionality, text: "BFI-2-S item 23 (placeholder; insert official wording)"}
+  - {item_id: bfi_24, index: 24, domain: negative_emotionality, text: "BFI-2-S item 24 (placeholder; insert official wording)"}
+  - {item_id: bfi_25, index: 25, domain: open_mindedness,      text: "BFI-2-S item 25 (placeholder; insert official wording)"}
+  - {item_id: bfi_26, index: 26, domain: open_mindedness,      text: "BFI-2-S item 26 (placeholder; insert official wording)"}
+  - {item_id: bfi_27, index: 27, domain: open_mindedness,      text: "BFI-2-S item 27 (placeholder; insert official wording)"}
+  - {item_id: bfi_28, index: 28, domain: open_mindedness,      text: "BFI-2-S item 28 (placeholder; insert official wording)"}
+  - {item_id: bfi_29, index: 29, domain: open_mindedness,      text: "BFI-2-S item 29 (placeholder; insert official wording)"}
+  - {item_id: bfi_30, index: 30, domain: open_mindedness,      text: "BFI-2-S item 30 (placeholder; insert official wording)"}

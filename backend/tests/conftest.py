@@ -15,6 +15,7 @@ from app.db.session import get_db
 from app.main import app
 from app.models import Base
 from app.services.protocol import register_protocols
+from app.services.questionnaire import register_questionnaires
 
 
 @pytest.fixture
@@ -62,5 +63,18 @@ def protocol_id(_session_factory):
         protos = register_protocols(db)
         assert protos, "no protocol configs registered; expected bst_dtt_v1"
         return protos[0].protocol_id
+    finally:
+        db.close()
+
+
+@pytest.fixture
+def questionnaires(_session_factory):
+    """Register the on-disk questionnaire configs into the test DB (mirrors
+    startup). Returns the list of registered (key, version) tuples."""
+    db = _session_factory()
+    try:
+        rows = register_questionnaires(db)
+        assert rows, "no questionnaire configs registered; expected erq/bfi2s/etc."
+        return [(r.questionnaire_key, r.version) for r in rows]
     finally:
         db.close()
