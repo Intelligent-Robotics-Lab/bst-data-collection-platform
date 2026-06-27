@@ -1,0 +1,45 @@
+# Robotic Social Attributes Scale (RoSAS; Carpinella et al., 2017) -- CHILD
+# robot. 18 items, 7-point. Three subscales (Warmth, Competence, Discomfort),
+# 6 items each.
+#
+# RESEARCH-INTEGRITY NOTE (CLAUDE.md + requirements.md): RoSAS items are single
+# adjectives rated for how closely they are associated with the robot. The
+# official adjectives are NOT reproduced here; each item carries a stable item_id
+# and a neutral placeholder `text`. Drop the official adjective into each `text`
+# to run the real instrument (config edit only, no code change). Subscale
+# membership is factual metadata; the engine does not score (post hoc per PRD).
+questionnaire_key: rosas_child
+version: "1.0.0"
+title: "RoSAS - Child Robot"
+timepoint: post
+scale_type: likert_7
+target: child_robot
+
+response_scale:
+  type: likert
+  min: 1
+  max: 7
+  anchors:
+    1: "definitely not associated"
+    4: "neutral"
+    7: "definitely associated"
+
+items:
+  - {item_id: rosas_ch_01, index: 1,  subscale: warmth,     text: "Child RoSAS warmth item 1 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_02, index: 2,  subscale: warmth,     text: "Child RoSAS warmth item 2 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_03, index: 3,  subscale: warmth,     text: "Child RoSAS warmth item 3 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_04, index: 4,  subscale: warmth,     text: "Child RoSAS warmth item 4 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_05, index: 5,  subscale: warmth,     text: "Child RoSAS warmth item 5 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_06, index: 6,  subscale: warmth,     text: "Child RoSAS warmth item 6 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_07, index: 7,  subscale: competence, text: "Child RoSAS competence item 1 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_08, index: 8,  subscale: competence, text: "Child RoSAS competence item 2 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_09, index: 9,  subscale: competence, text: "Child RoSAS competence item 3 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_10, index: 10, subscale: competence, text: "Child RoSAS competence item 4 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_11, index: 11, subscale: competence, text: "Child RoSAS competence item 5 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_12, index: 12, subscale: competence, text: "Child RoSAS competence item 6 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_13, index: 13, subscale: discomfort, text: "Child RoSAS discomfort item 1 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_14, index: 14, subscale: discomfort, text: "Child RoSAS discomfort item 2 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_15, index: 15, subscale: discomfort, text: "Child RoSAS discomfort item 3 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_16, index: 16, subscale: discomfort, text: "Child RoSAS discomfort item 4 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_17, index: 17, subscale: discomfort, text: "Child RoSAS discomfort item 5 (placeholder; insert official adjective)"}
+  - {item_id: rosas_ch_18, index: 18, subscale: discomfort, text: "Child RoSAS discomfort item 6 (placeholder; insert official adjective)"}

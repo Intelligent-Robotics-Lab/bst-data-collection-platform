@@ -1,0 +1,23 @@
+# D-QEL -- placeholder (post-session). Structure pending the real instrument.
+#
+# This config exists so the engine, tablet rendering, and exports have a real
+# D-QEL entry to attach to. The item set below is a minimal placeholder; replace
+# the items with the official D-QEL content (a config edit only) when available.
+questionnaire_key: dqel
+version: "0.1.0-placeholder"
+title: "D-QEL (placeholder)"
+timepoint: post
+scale_type: likert_7
+
+response_scale:
+  type: likert
+  min: 1
+  max: 7
+  anchors:
+    1: "strongly disagree"
+    7: "strongly agree"
+
+items:
+  - {item_id: dqel_01, index: 1, text: "D-QEL item 1 (placeholder; insert official wording)"}
+  - {item_id: dqel_02, index: 2, text: "D-QEL item 2 (placeholder; insert official wording)"}
+  - {item_id: dqel_03, index: 3, text: "D-QEL item 3 (placeholder; insert official wording)"}

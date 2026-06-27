@@ -1,4 +1,4 @@
-"""Model registry. Importing this package registers all 21 tables on
+"""Model registry. Importing this package registers all 22 tables on
 ``Base.metadata`` for ``create_all``.
 """
 
@@ -17,6 +17,7 @@ from app.models.signals import (
     ParticipantSelfReport,
     PerceptionEvent,
     RobotEvent,
+    SelfReportDraft,
 )
 from app.models.questionnaire import (
     Questionnaire,
@@ -48,6 +49,7 @@ __all__ = [
     # signals
     "RobotEvent",
     "ParticipantSelfReport",
+    "SelfReportDraft",
     "PerceptionEvent",
     "MediaRecording",
     # questionnaire

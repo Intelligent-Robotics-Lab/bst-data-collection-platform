@@ -1,0 +1,32 @@
+# Manipulation checks + post-session perceptions -- placeholder (post-session).
+#
+# These are study-authored items (NOT a copyrighted instrument), so the display
+# text is real but the set is a working placeholder; refine wording/items as the
+# protocol firms up (a config edit only). Covers the post-study perception
+# measures called for in requirements.md: perceived robot support, perceived
+# robot challenge, task engagement/flow, plus an open-ended feedback field.
+questionnaire_key: manipulation_checks
+version: "0.1.0-placeholder"
+title: "Manipulation Checks and Post-Session Perceptions (placeholder)"
+timepoint: post
+scale_type: mixed
+
+response_scale:
+  type: likert
+  min: 1
+  max: 7
+  anchors:
+    1: "strongly disagree"
+    4: "neutral"
+    7: "strongly agree"
+
+items:
+  - {item_id: mc_support_condition, index: 1, type: single_choice,
+     text: "During the session, did the robot provide you with support?",
+     required: true,
+     options: [{value: "yes", label: "Yes"}, {value: "no", label: "No"}, {value: unsure, label: "Unsure"}]}
+  - {item_id: mc_perceived_support,   index: 2, type: likert, text: "I felt supported by the robot during the task."}
+  - {item_id: mc_perceived_challenge, index: 3, type: likert, text: "The task felt challenging."}
+  - {item_id: mc_task_engagement,     index: 4, type: likert, text: "I felt engaged and absorbed in the task (flow)."}
+  - {item_id: mc_open_feedback, index: 5, type: text, required: false,
+     text: "Any other thoughts about the session? (optional)"}

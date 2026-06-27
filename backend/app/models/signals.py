@@ -7,7 +7,14 @@ rows only in practice; perception (ml) affect lives in ``perception_events``.
 The sr/ml union is the Day-6 analysis assembly script's job.
 """
 
-from sqlalchemy import CheckConstraint, Float, ForeignKey, Integer, String
+from sqlalchemy import (
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.timeutil import now_utc_iso
@@ -117,6 +124,67 @@ class ParticipantSelfReport(Base):
         *(
             CheckConstraint(f"{f} BETWEEN -5 AND 5", name=f"ck_self_reports_{f}_range")
             for f in _SLIDER_FIELDS
+        ),
+    )
+
+
+class SelfReportDraft(Base):
+    """Autosave draft for an in-progress self-report (P0.7 autosave).
+
+    Working state, NOT the research record: a draft is overwritten on every
+    autosave and deleted the moment the participant submits. The raw, immutable
+    record lives in ``participant_self_reports``; drafts never touch that table
+    and never write a timeline event (only the submit does).
+
+    One draft per (session_id, context_key). ``context_key`` is a canonical
+    encoding of the FULL self-report context (loop_index, phase, timepoint,
+    function_class, is_problem, sequence_position, before_after_robot_action,
+    trial_id), so the many self-reports a participant gives in one session each
+    keep their own draft and never share or overwrite one another.
+    """
+
+    __tablename__ = "self_report_drafts"
+
+    draft_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(
+        ForeignKey("sessions.session_id"), nullable=False
+    )
+    participant_id: Mapped[str | None] = mapped_column(
+        ForeignKey("participants.participant_id"), nullable=True
+    )
+    # Canonical encoding of the full context; uniqueness is enforced on this.
+    context_key: Mapped[str] = mapped_column(String, nullable=False)
+
+    # Context fields, retained for inspection (the key is derived from these).
+    loop_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    sequence_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    phase: Mapped[str | None] = mapped_column(String, nullable=True)
+    timepoint: Mapped[str | None] = mapped_column(String, nullable=True)
+    function_class: Mapped[str | None] = mapped_column(String, nullable=True)
+    is_problem: Mapped[str | None] = mapped_column(String, nullable=True)
+    before_after_robot_action: Mapped[str | None] = mapped_column(String, nullable=True)
+    trial_id: Mapped[int | None] = mapped_column(
+        ForeignKey("dtt_trials.trial_id"), nullable=True
+    )
+
+    # The nine bipolar sliders, continuous [-5, +5] (true-zero center).
+    pleasure: Mapped[float | None] = mapped_column(Float, nullable=True)
+    arousal: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dominance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    frustration: Mapped[float | None] = mapped_column(Float, nullable=True)
+    engagement: Mapped[float | None] = mapped_column(Float, nullable=True)
+    perceived_challenge: Mapped[float | None] = mapped_column(Float, nullable=True)
+    perceived_support: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cognitive_load: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    raw_json: Mapped[str | None] = mapped_column(String, nullable=True)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False, default=now_utc_iso)
+    created_at: Mapped[str] = mapped_column(String, nullable=False, default=now_utc_iso)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "session_id", "context_key", name="uq_self_report_drafts_session_context"
         ),
     )
 
