@@ -46,13 +46,26 @@ class Settings(BaseSettings):
     # completion. Keep the last N copies; backups are non-destructive file copies.
     DB_BACKUP_KEEP: int = 20
 
-    # --- Perception orchestrator (read-only; see perception_integration.md) ---
+    # --- Perception orchestrator (read-only consumer; see perception_integration.md) ---
+    # READ-ONLY: the adapter only ever GETs /state/* and /health. It never POSTs
+    # or otherwise mutates the orchestrator. OFF by default so dev/CI never poll;
+    # the lab server sets PERCEPTION_ENABLED=true.
+    PERCEPTION_ENABLED: bool = False
     PERCEPTION_BASE_URL: str = "http://localhost:8000"
     PERCEPTION_POLL_MS_ASR: int = 500
-    PERCEPTION_POLL_MS_EMOTION: int = 1000
+    PERCEPTION_POLL_MS_EMOTION: int = 200  # 5 fps (per study request; doc default was 1000)
     PERCEPTION_POLL_MS_GESTURE: int = 500
     PERCEPTION_HEALTH_MS: int = 5000
     PERCEPTION_HTTP_TIMEOUT_MS: int = 2000
+    # Per-task enable flags so a study can log only the streams it needs.
+    PERCEPTION_ASR_ENABLED: bool = True
+    PERCEPTION_EMOTION_ENABLED: bool = True
+    PERCEPTION_GESTURE_ENABLED: bool = True
+    # Perception is high-frequency (5-10 Hz). By default we do NOT mirror every
+    # reading onto the session timeline (that would bury trials/self-reports under
+    # thousands of rows); the timeline carries only outage/recovery transitions.
+    # Set true to also emit one timeline event per reading.
+    PERCEPTION_TIMELINE_EVERY_READING: bool = False
 
     @property
     def db_path(self) -> Path:
