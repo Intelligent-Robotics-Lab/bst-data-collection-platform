@@ -19,6 +19,7 @@ from app.api import (
     participants,
     protocols,
     questionnaires,
+    recordings,
     robot_events,
     self_reports,
     sessions,
@@ -76,6 +77,7 @@ app.include_router(sessions.router)
 app.include_router(notes.router)
 app.include_router(robot_events.router)
 app.include_router(trials.router)
+app.include_router(recordings.router)
 app.include_router(questionnaires.router)
 app.include_router(questionnaires.responses_router)
 app.include_router(self_reports.router)

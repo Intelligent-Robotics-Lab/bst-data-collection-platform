@@ -54,9 +54,52 @@ class Settings(BaseSettings):
     PERCEPTION_HEALTH_MS: int = 5000
     PERCEPTION_HTTP_TIMEOUT_MS: int = 2000
 
+    # --- A/V recording (P0.8) ---
+    # Defaults below ARE the Day-1 verified Brio/NVENC capture command. Recording
+    # is OFF by default so dev/CI never spawn ffmpeg; the lab server's .env sets
+    # RECORDING_ENABLED=true. Every part of the command is a setting so the lab
+    # can swap the device or point at the mounted SSD with no code change, and so
+    # dev/CI can use a synthetic lavfi source (RECORDING_USE_TEST_SOURCE=true).
+    RECORDING_ENABLED: bool = False
+    RECORDING_FFMPEG_BIN: str = "ffmpeg"
+    RECORDING_VIDEO_DEVICE: str = "/dev/video0"          # Brio, MJPEG input
+    RECORDING_VIDEO_INPUT_FORMAT: str = "v4l2"
+    RECORDING_VIDEO_INPUT_PIXEL: str = "mjpeg"           # ffmpeg -input_format
+    RECORDING_VIDEO_SIZE: str = "1920x1080"
+    RECORDING_FRAMERATE: int = 30
+    RECORDING_AUDIO_DEVICE: str = "hw:CARD=BRIO,DEV=0"    # pin by name, not hw:4,0
+    RECORDING_AUDIO_INPUT_FORMAT: str = "alsa"
+    RECORDING_THREAD_QUEUE_SIZE: int = 1024
+    RECORDING_VIDEO_CODEC: str = "h264_nvenc"
+    RECORDING_VIDEO_BITRATE: str = "5M"
+    RECORDING_PIX_FMT: str = "yuv420p"
+    RECORDING_AUDIO_CODEC: str = "aac"
+    RECORDING_AUDIO_BITRATE: str = "128k"
+    RECORDING_CONTAINER: str = "mp4"
+    # ffmpeg 4.4 uses -vsync passthrough; 5.x renamed it to -fps_mode. Configurable
+    # so a future ffmpeg upgrade on the server is an .env change, not a code edit.
+    RECORDING_VSYNC: str = "passthrough"
+    # Settling window after spawn to catch immediate failures (device busy, bad
+    # args) so they are logged as a failed recording instead of a silent dead row.
+    RECORDING_START_SETTLE_S: float = 0.4
+    # Graceful-stop budget: how long to wait for ffmpeg to exit after 'q' before
+    # escalating to SIGTERM (still never SIGKILL first).
+    RECORDING_STOP_TIMEOUT_S: float = 10.0
+    # dev/CI only: synthetic A/V via lavfi (no camera, no GPU). Keeps every encoder
+    # flag identical so the wiring under test matches the real command.
+    RECORDING_USE_TEST_SOURCE: bool = False
+
     @property
     def db_path(self) -> Path:
         return _resolve(self.DB_PATH)
+
+    @property
+    def recordings_dir(self) -> Path:
+        return _resolve(self.RECORDINGS_DIR)
+
+    @property
+    def logs_dir(self) -> Path:
+        return _resolve(self.LOGS_DIR)
 
     @property
     def backups_dir(self) -> Path:

@@ -9,6 +9,8 @@ paused).
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -17,8 +19,11 @@ from app.core.timeutil import now_utc
 from app.models.dtt import DttProtocol
 from app.models.participant import Participant
 from app.models.session import StudySession
+from app.services import recording
 from app.services.backup import backup_database
 from app.services.timeline import record_timeline_event
+
+logger = logging.getLogger("bst.session")
 
 # action -> (states it is legal from, resulting state, timeline event type)
 LEGAL_TRANSITIONS: dict[str, tuple[frozenset[str], str, str]] = {
@@ -124,6 +129,18 @@ def apply_transition(db: Session, session: StudySession, action: str) -> StudySe
     )
     db.commit()
     db.refresh(session)
+
+    # A/V recording follows the session lifecycle: start on 'start', stop on
+    # 'stop'. The recording service logs its own failures and never raises; the
+    # outer guard is belt-and-suspenders so an unexpected bug there can never
+    # turn a lifecycle transition into a 500 and disrupt a live session.
+    try:
+        if action == "start":
+            recording.start_session_recording(db, session)
+        elif action == "stop":
+            recording.stop_session_recording(db, session)
+    except Exception:  # noqa: BLE001
+        logger.exception("Recording hook failed on '%s' for %s", action, session.session_id)
 
     # Preserve every finished session immediately (non-destructive; never raises).
     if action == "complete":
