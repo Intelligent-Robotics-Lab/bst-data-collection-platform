@@ -19,7 +19,7 @@ from app.core.timeutil import now_utc
 from app.models.dtt import DttProtocol
 from app.models.participant import Participant
 from app.models.session import StudySession
-from app.services import perception
+from app.services import perception, recording
 from app.services.backup import backup_database
 from app.services.timeline import record_timeline_event
 
@@ -129,6 +129,18 @@ def apply_transition(db: Session, session: StudySession, action: str) -> StudySe
     )
     db.commit()
     db.refresh(session)
+
+    # A/V recording follows the session lifecycle: start on 'start', stop on
+    # 'stop'. The recording service logs its own failures and never raises; the
+    # outer guard is belt-and-suspenders so an unexpected bug there can never
+    # turn a lifecycle transition into a 500 and disrupt a live session.
+    try:
+        if action == "start":
+            recording.start_session_recording(db, session)
+        elif action == "stop":
+            recording.stop_session_recording(db, session)
+    except Exception:  # noqa: BLE001
+        logger.exception("Recording hook failed on '%s' for %s", action, session.session_id)
 
     # Perception polling follows the session lifecycle: start on 'start', stop on
     # 'stop'. The adapter logs its own outages and never raises; the outer guard
