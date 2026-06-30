@@ -40,6 +40,7 @@ from app.models.signals import (
     ParticipantSelfReport,
     PerceptionEvent,
 )
+from app.models.sync import SyncGate
 from app.models.system import Export, SessionTimelineEvent
 from app.services.data_dictionary import write_data_dictionary
 from app.services.dtt_loops import resolve_named_sd
@@ -155,6 +156,13 @@ def _write_raw_dumps(db: Session, session: StudySession, out: Path) -> tuple[lis
         .order_by(MediaRecording.recording_id)
     ).all()
     csv_dump("media_recordings.csv", MediaRecording, recordings)
+
+    # sync gates: the BST<->platform barriers; override rows (closed_by='override')
+    # are the skipped-by-override markers, distinguishable here and in the timeline.
+    gates = db.scalars(
+        select(SyncGate).where(SyncGate.session_id == sid).order_by(SyncGate.gate_id)
+    ).all()
+    csv_dump("sync_gates.csv", SyncGate, gates)
 
     # perception_events: JSONL, raw_payload parsed back to nested JSON
     perception = db.scalars(

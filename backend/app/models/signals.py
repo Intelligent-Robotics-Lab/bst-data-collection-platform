@@ -77,9 +77,13 @@ class ParticipantSelfReport(Base):
     )
 
     # Analysis join keys (canonical in dtt_loops; carried here for convenience).
-    loop_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    # loop_index is nullable: instructional-stage baseline self-reports
+    # (phase tutorial|instruction|modeling) precede any rehearsal loop and have
+    # no loop_index; loop-bound reports (rehearsal/feedback) still carry 1..6.
+    loop_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     sequence_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    phase: Mapped[str] = mapped_column(String, nullable=False)  # dtt | feedback
+    # tutorial | instruction | modeling (baseline) | rehearsal | feedback
+    phase: Mapped[str] = mapped_column(String, nullable=False)
     timepoint: Mapped[str] = mapped_column(String, nullable=False)  # pre | post
     function_class: Mapped[str] = mapped_column(String, nullable=False)
     is_problem: Mapped[str | None] = mapped_column(String, nullable=True)
@@ -103,11 +107,17 @@ class ParticipantSelfReport(Base):
     created_at: Mapped[str] = mapped_column(String, nullable=False, default=now_utc_iso)
 
     __table_args__ = (
-        CheckConstraint("loop_index BETWEEN 1 AND 6", name="ck_self_reports_loop_index"),
+        CheckConstraint(
+            "loop_index IS NULL OR loop_index BETWEEN 1 AND 6",
+            name="ck_self_reports_loop_index",
+        ),
         CheckConstraint(
             "sequence_position BETWEEN 1 AND 6", name="ck_self_reports_sequence_position"
         ),
-        CheckConstraint("phase IN ('dtt','feedback')", name="ck_self_reports_phase"),
+        CheckConstraint(
+            "phase IN ('tutorial','instruction','modeling','rehearsal','feedback')",
+            name="ck_self_reports_phase",
+        ),
         CheckConstraint("timepoint IN ('pre','post')", name="ck_self_reports_timepoint"),
         CheckConstraint(
             "function_class IN ('baseline','PR','NR','AR','not_applicable')",

@@ -63,7 +63,7 @@ def autosave_self_report(
 @router.get("/draft", response_model=SelfReportDraftRead)
 def read_self_report_draft(
     session_id: str,
-    loop_index: int = Query(..., ge=1, le=6),
+    loop_index: Optional[int] = Query(default=None, ge=1, le=6),
     phase: Phase = Query(...),
     timepoint: Timepoint = Query(...),
     function_class: FunctionClass = Query(...),

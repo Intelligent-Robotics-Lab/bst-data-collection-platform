@@ -166,8 +166,17 @@ Defined but UNUSED in v1 (scoring is post-hoc). Header is present; rows likely 0
 ### self_reports.csv
 Participant self-reports (PAD + ratings), continuous bipolar sliders in [-5, +5]
 (true-zero center). Each row carries its own analysis context:
-- `loop_index`, `sequence_position`, `phase` (dtt/feedback), `timepoint` (pre/post).
+- `loop_index` - 1..6 for loop-bound reports; **NULL for the three instructional
+  baseline reports** (phase tutorial/instruction/modeling) which precede any loop.
+- `sequence_position`; `timepoint` (pre/post).
+- `phase` - one of `tutorial | instruction | modeling | rehearsal | feedback`.
+  **`tutorial`, `instruction`, `modeling` are the three baseline self-reports**
+  (collected at the end of each instructional stage, before rehearsal, no problem
+  behavior in play). `rehearsal` = the post-SD-delivery report within a loop;
+  `feedback` = the post-feedback report within a loop. Two reports per DTT loop
+  (rehearsal + feedback) plus three baseline = the 15 gated measurements.
 - `function_class` - carried for convenience; canonical value is in `dtt_loops`.
+  Baseline self-reports carry `function_class='baseline'`.
 - `before_after_robot_action` - before / after / na.
 - `source` - 'sr' (self-report). ML affect lives in perception_events, not here.
 - Sliders: `pleasure` (==valence), `arousal`, `dominance`, `confidence`,
@@ -184,6 +193,21 @@ A/V recording manifest (one row per recording attempt).
   may be lower; trust ffprobe)**, `bitrate_kbps`, `pix_fmt`, `audio_device`.
 - `ffmpeg_command`, `device_name`, `error_text`, `notes`.
 
+### sync_gates.csv
+The BST<->platform synchronization barriers (15 per fully gated session: 3
+instructional baseline + 6 loops x 2 checkpoints). One row per gate.
+- `gate_key` - canonical id, e.g. `stage:tutorial:baseline`, `loop:2:post_sd`.
+- `scope` - `stage` | `loop`; `stage_key` (tutorial/instruction/modeling) or
+  `loop_index` (1..6); `checkpoint` - `baseline` | `post_sd` | `post_feedback`.
+- `status` - `open` | `closed`.
+- **`closed_by`** - `self_report` (a matching report was submitted) or
+  **`override`** (operator released the gate). **`closed_by='override'` is the
+  skipped-by-override marker: that checkpoint's measurement was intentionally
+  skipped, NOT missing-by-error.** The same event also appears in the timeline as
+  `self_report_gate_overridden`.
+- `override_operator`, `override_reason` - who/why for an override.
+- `opened_at`, `closed_at`.
+
 ### perception_events.jsonl
 One JSON object per line; one row per perception poll. Outages are data, not gaps
 (a failed poll writes a row with `connection_status='down'` and null payload).
@@ -198,7 +222,8 @@ One JSON object per line; one row per perception poll. Outages are data, not gap
 The unified event spine; a completed session reconstructs from this alone. One
 JSON object per line, ordered by `event_id`.
 - `event_id`, `session_id`, `participant_id`, `timestamp_utc`, `session_time_ms`.
-- `source`, `type` (e.g. session_started, dtt_loops_generated, trial_logged).
+- `source`, `type` (e.g. session_started, dtt_loops_generated, trial_logged,
+  self_report_gate_opened, self_report_gate_closed, **self_report_gate_overridden**).
 - `payload` - event detail, parsed to nested JSON.
 - `ref_table`, `ref_id` - soft link to the row this event describes.
 
