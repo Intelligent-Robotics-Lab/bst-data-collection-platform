@@ -41,6 +41,49 @@ PB_ORDER_GROUP_EVEN_FUNCTION: dict[int, dict[int, str]] = {
 BASELINE_LOOPS = (1, 3, 5)
 ALL_LOOPS = (1, 2, 3, 4, 5, 6)
 
+# Named DTT skill occupying each loop POSITION by pb_order_group. This is the
+# inverse (SD cell -> trial name) of bst-study logic/latin_square.py
+# CONFIGURATION_TO_SD_NUMBER. Reference only: it is NOT stored on raw rows
+# (sd_id stays the positional cell sd_{loop_index}); the exports' analysis frame
+# and data dictionary use it to resolve sd_2 in group 1 = "Receptive Instruction"
+# (NR) vs sd_2 in group 3 = "Tacting and Labeling" (PR). The odd positions
+# (Manding/Imitation/Emotion Labeling) are baseline and fixed across groups.
+NAMED_SD_BY_GROUP: dict[int, dict[int, str]] = {
+    1: {
+        1: "Manding",
+        2: "Receptive Instruction",
+        3: "Imitation",
+        4: "Tacting and Labeling",
+        5: "Emotion Labeling",
+        6: "Receptive Expression",
+    },
+    2: {
+        1: "Manding",
+        2: "Receptive Expression",
+        3: "Imitation",
+        4: "Receptive Instruction",
+        5: "Emotion Labeling",
+        6: "Tacting and Labeling",
+    },
+    3: {
+        1: "Manding",
+        2: "Tacting and Labeling",
+        3: "Imitation",
+        4: "Receptive Expression",
+        5: "Emotion Labeling",
+        6: "Receptive Instruction",
+    },
+}
+
+
+def resolve_named_sd(pb_order_group, loop_index) -> str | None:
+    """Resolve the named DTT skill at a loop position for an order group, or None
+    if either is missing/out of range. Reference resolution only (see
+    NAMED_SD_BY_GROUP); never mutates anything."""
+    if pb_order_group is None or loop_index is None:
+        return None
+    return NAMED_SD_BY_GROUP.get(pb_order_group, {}).get(loop_index)
+
 
 def loop_plan(pb_order_group: int) -> list[dict]:
     """Return the six (loop_index, function_class, sd_id, is_problem) rows for a

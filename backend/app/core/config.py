@@ -119,6 +119,10 @@ class Settings(BaseSettings):
         return _resolve(self.BACKUPS_DIR)
 
     @property
+    def exports_dir(self) -> Path:
+        return _resolve(self.EXPORTS_DIR)
+
+    @property
     def configs_dir(self) -> Path:
         return _resolve(self.CONFIGS_DIR)
 
