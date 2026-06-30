@@ -172,9 +172,11 @@ Participant self-reports (PAD + ratings), continuous bipolar sliders in [-5, +5]
 - `phase` - one of `tutorial | instruction | modeling | rehearsal | feedback`.
   **`tutorial`, `instruction`, `modeling` are the three baseline self-reports**
   (collected at the end of each instructional stage, before rehearsal, no problem
-  behavior in play). `rehearsal` = the post-SD-delivery report within a loop;
-  `feedback` = the post-feedback report within a loop. Two reports per DTT loop
-  (rehearsal + feedback) plus three baseline = the 15 gated measurements.
+  behavior in play). `rehearsal` = the post-kid-response report within a loop
+  (the participant's reaction to the CHILD'S behavior - the PR/NR/AR manipulation
+  - collected after the kid-behavior arc and before feedback); `feedback` = the
+  post-feedback report within a loop. Two reports per DTT loop (rehearsal +
+  feedback) plus three baseline = the 15 gated measurements.
 - `function_class` - carried for convenience; canonical value is in `dtt_loops`.
   Baseline self-reports carry `function_class='baseline'`.
 - `before_after_robot_action` - before / after / na.
@@ -196,9 +198,13 @@ A/V recording manifest (one row per recording attempt).
 ### sync_gates.csv
 The BST<->platform synchronization barriers (15 per fully gated session: 3
 instructional baseline + 6 loops x 2 checkpoints). One row per gate.
-- `gate_key` - canonical id, e.g. `stage:tutorial:baseline`, `loop:2:post_sd`.
+- `gate_key` - canonical id, e.g. `stage:tutorial:baseline`, `loop:2:post_kid_response`.
 - `scope` - `stage` | `loop`; `stage_key` (tutorial/instruction/modeling) or
-  `loop_index` (1..6); `checkpoint` - `baseline` | `post_sd` | `post_feedback`.
+  `loop_index` (1..6); `checkpoint` - `baseline` | `post_kid_response` |
+  `post_feedback`. `post_kid_response` opens after the child-behavior arc
+  completes (the child has exhibited its behavior / problem behavior, the
+  PR/NR/AR manipulation) and before the trainer's feedback; `post_feedback`
+  opens after feedback is delivered.
 - `status` - `open` | `closed`.
 - **`closed_by`** - `self_report` (a matching report was submitted) or
   **`override`** (operator released the gate). **`closed_by='override'` is the

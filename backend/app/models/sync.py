@@ -6,10 +6,14 @@ collected before BST advances. There are 15 gates per session:
   * 3 instructional baseline gates: scope='stage', stage_key in
     (tutorial, instruction, modeling), checkpoint='baseline'.
   * 12 loop gates: scope='loop', loop_index in 1..6, checkpoint in
-    (post_sd, post_feedback) -> two self-reports per DTT loop.
+    (post_kid_response, post_feedback) -> two self-reports per DTT loop. The
+    post_kid_response report measures the participant's reaction to the CHILD'S
+    behavior (the PR/NR/AR manipulation), collected after the kid-behavior arc
+    and before the trainer's feedback.
 
-State machine: a gate OPENS on stage_complete / sd_delivered / feedback_delivered
-and CLOSES on either the matching self-report being submitted (closed_by='self_report')
+State machine: a gate OPENS on stage_complete / kid_response_complete /
+feedback_delivered and CLOSES on either the matching self-report being submitted
+(closed_by='self_report')
 or an operator override (closed_by='override'). ``go_ahead`` reports
 proceed=false only while an open gate has not yet been satisfied.
 
@@ -31,13 +35,13 @@ class SyncGate(Base):
     session_id: Mapped[str] = mapped_column(
         ForeignKey("sessions.session_id"), nullable=False
     )
-    # Canonical key, e.g. "stage:tutorial:baseline" or "loop:2:post_sd".
+    # Canonical key, e.g. "stage:tutorial:baseline" or "loop:2:post_kid_response".
     gate_key: Mapped[str] = mapped_column(String, nullable=False)
 
     scope: Mapped[str] = mapped_column(String, nullable=False)  # stage | loop
     stage_key: Mapped[str | None] = mapped_column(String, nullable=True)  # tutorial|instruction|modeling
     loop_index: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1..6
-    checkpoint: Mapped[str] = mapped_column(String, nullable=False)  # baseline|post_sd|post_feedback
+    checkpoint: Mapped[str] = mapped_column(String, nullable=False)  # baseline|post_kid_response|post_feedback
 
     status: Mapped[str] = mapped_column(String, nullable=False, default="open")  # open | closed
     closed_by: Mapped[str | None] = mapped_column(String, nullable=True)  # self_report | override
@@ -52,7 +56,7 @@ class SyncGate(Base):
         UniqueConstraint("session_id", "gate_key", name="uq_sync_gates_session_gate"),
         CheckConstraint("scope IN ('stage','loop')", name="ck_sync_gates_scope"),
         CheckConstraint(
-            "checkpoint IN ('baseline','post_sd','post_feedback')",
+            "checkpoint IN ('baseline','post_kid_response','post_feedback')",
             name="ck_sync_gates_checkpoint",
         ),
         CheckConstraint("status IN ('open','closed')", name="ck_sync_gates_status"),

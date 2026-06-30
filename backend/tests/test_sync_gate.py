@@ -1,7 +1,7 @@
 """BST<->platform sync gate tests (Phase 7, P0.13).
 
 Exercises the gate state machine over the API (no operator UI yet): register,
-the three openers (stage_complete / sd_delivered / feedback_delivered), go_ahead
+the three openers (stage_complete / kid_response_complete / feedback_delivered), go_ahead
 polling, close-by-self-report, operator override (+ exported marker), keying
 independence, idempotency, and validation.
 """
@@ -85,17 +85,17 @@ def test_stage_gate_blocks_until_baseline_self_report(client, protocol_id):
 
 # --- loop gates --------------------------------------------------------------
 
-def test_loop_gates_post_sd_and_post_feedback(client, protocol_id):
+def test_loop_gates_post_kid_response_and_post_feedback(client, protocol_id):
     sid = _session(client, protocol_id, group=1)  # loop 2 = NR
 
-    # post_sd opens, blocks, then a rehearsal self-report on loop 2 releases it
-    client.post(f"/sessions/{sid}/sync/sd-delivered", json={"loop_index": 2})
-    assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_sd")["proceed"] is False
+    # post_kid_response opens (child has behaved, before feedback); a rehearsal self-report on loop 2 releases it
+    client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 2})
+    assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is False
     client.post(
         f"/sessions/{sid}/self-reports",
         json={"loop_index": 2, "phase": "rehearsal", "timepoint": "pre", "function_class": "NR"},
     )
-    assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_sd")["proceed"] is True
+    assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is True
 
     # post_feedback is an independent gate: still open until its feedback report
     client.post(f"/sessions/{sid}/sync/feedback-delivered", json={"loop_index": 2})
@@ -109,16 +109,16 @@ def test_loop_gates_post_sd_and_post_feedback(client, protocol_id):
 
 def test_keying_is_independent_across_loops_and_checkpoints(client, protocol_id):
     sid = _session(client, protocol_id)
-    client.post(f"/sessions/{sid}/sync/sd-delivered", json={"loop_index": 2})
-    client.post(f"/sessions/{sid}/sync/sd-delivered", json={"loop_index": 4})
-    # close loop 2 post_sd only
+    client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 2})
+    client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 4})
+    # close loop 2 post_kid_response only
     client.post(
         f"/sessions/{sid}/self-reports",
         json={"loop_index": 2, "phase": "rehearsal", "timepoint": "pre", "function_class": "NR"},
     )
-    assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_sd")["proceed"] is True
-    # loop 4 post_sd still blocked; loop 2 post_feedback never opened
-    assert _go(client, sid, scope="loop", loop_index=4, checkpoint="post_sd")["proceed"] is False
+    assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is True
+    # loop 4 post_kid_response still blocked; loop 2 post_feedback never opened
+    assert _go(client, sid, scope="loop", loop_index=4, checkpoint="post_kid_response")["proceed"] is False
     nf = _go(client, sid, scope="loop", loop_index=2, checkpoint="post_feedback")
     assert nf["proceed"] is True and nf["gate_found"] is False
 
@@ -182,15 +182,15 @@ def test_override_can_precede_open_and_is_idempotent(client, protocol_id):
 
 def test_resend_opener_does_not_reopen_closed_gate(client, protocol_id):
     sid = _session(client, protocol_id)
-    client.post(f"/sessions/{sid}/sync/sd-delivered", json={"loop_index": 1})
+    client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 1})
     client.post(
         f"/sessions/{sid}/self-reports",
         json={"loop_index": 1, "phase": "rehearsal", "timepoint": "pre", "function_class": "baseline"},
     )
     # closed via self-report
-    assert _go(client, sid, scope="loop", loop_index=1, checkpoint="post_sd")["proceed"] is True
-    # a re-sent sd_delivered (bst retry) must not reopen it
-    again = client.post(f"/sessions/{sid}/sync/sd-delivered", json={"loop_index": 1})
+    assert _go(client, sid, scope="loop", loop_index=1, checkpoint="post_kid_response")["proceed"] is True
+    # a re-sent kid_response_complete (bst retry) must not reopen it
+    again = client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 1})
     assert again.json()["status"] == "closed"
 
 
@@ -198,7 +198,7 @@ def test_resend_opener_does_not_reopen_closed_gate(client, protocol_id):
 
 def test_go_ahead_on_unopened_gate_proceeds(client, protocol_id):
     sid = _session(client, protocol_id)
-    res = _go(client, sid, scope="loop", loop_index=3, checkpoint="post_sd")
+    res = _go(client, sid, scope="loop", loop_index=3, checkpoint="post_kid_response")
     assert res == {"proceed": True, "gate_found": False, "gate": None}
 
 
@@ -207,12 +207,12 @@ def test_bad_gate_identities_are_422(client, protocol_id):
     # stage gate with a loop checkpoint
     assert client.post(
         f"/sessions/{sid}/sync/override",
-        json={"scope": "stage", "stage": "tutorial", "checkpoint": "post_sd"},
+        json={"scope": "stage", "stage": "tutorial", "checkpoint": "post_kid_response"},
     ).status_code == 422
     # loop gate missing loop_index
     assert client.post(
         f"/sessions/{sid}/sync/override",
-        json={"scope": "loop", "checkpoint": "post_sd"},
+        json={"scope": "loop", "checkpoint": "post_kid_response"},
     ).status_code == 422
 
 
@@ -222,7 +222,7 @@ def test_full_session_has_fifteen_gates(client, protocol_id):
     for stage in ("tutorial", "instruction", "modeling"):
         client.post(f"/sessions/{sid}/sync/stage-complete", json={"stage": stage})
     for loop in range(1, 7):
-        client.post(f"/sessions/{sid}/sync/sd-delivered", json={"loop_index": loop})
+        client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": loop})
         client.post(f"/sessions/{sid}/sync/feedback-delivered", json={"loop_index": loop})
     summary = client.post(f"/sessions/{sid}/sync/complete").json()
     assert summary["total_gates"] == 15

@@ -6,10 +6,10 @@ lives in services/sync_gate. All endpoints are keyed by
 (session_id, stage-or-loop_index, checkpoint) and are testable now via API,
 before any operator UI exists (override included).
 
-  POST .../sync/register            session_register
-  POST .../sync/stage-complete      open a stage baseline gate
-  POST .../sync/sd-delivered        open a loop post_sd gate
-  POST .../sync/feedback-delivered  open a loop post_feedback gate
+  POST .../sync/register               session_register
+  POST .../sync/stage-complete         open a stage baseline gate
+  POST .../sync/kid-response-complete  open a loop post_kid_response gate
+  POST .../sync/feedback-delivered     open a loop post_feedback gate
   GET  .../sync/go-ahead            poll a gate (proceed true/false)
   POST .../sync/override            operator releases a gate (+ marker)
   POST .../sync/complete            session_complete marker
@@ -25,8 +25,8 @@ from app.schemas.sync import (
     FeedbackDeliveredIn,
     GateRead,
     GoAheadResult,
+    KidResponseIn,
     OverrideIn,
-    SdDeliveredIn,
     SessionCompleteResult,
     SessionRegisterResult,
     StageCompleteIn,
@@ -57,10 +57,16 @@ def stage_complete(session_id: str, payload: StageCompleteIn, db: Session = Depe
     return open_stage_gate(db, session, payload.stage)
 
 
-@router.post("/sd-delivered", response_model=GateRead, status_code=status.HTTP_201_CREATED)
-def sd_delivered(session_id: str, payload: SdDeliveredIn, db: Session = Depends(get_db)):
+@router.post(
+    "/kid-response-complete", response_model=GateRead, status_code=status.HTTP_201_CREATED
+)
+def kid_response_complete(
+    session_id: str, payload: KidResponseIn, db: Session = Depends(get_db)
+):
+    """The child-behavior arc has completed (kid exhibited its behavior); feedback
+    not yet delivered. Opens the loop post_kid_response gate."""
     session = get_session_or_404(db, session_id)
-    return open_loop_gate(db, session, payload.loop_index, "post_sd")
+    return open_loop_gate(db, session, payload.loop_index, "post_kid_response")
 
 
 @router.post(
@@ -77,7 +83,7 @@ def feedback_delivered(
 def poll_go_ahead(
     session_id: str,
     scope: Literal["stage", "loop"] = Query(...),
-    checkpoint: Literal["baseline", "post_sd", "post_feedback"] = Query(...),
+    checkpoint: Literal["baseline", "post_kid_response", "post_feedback"] = Query(...),
     stage: Optional[Literal["tutorial", "instruction", "modeling"]] = Query(default=None),
     loop_index: Optional[int] = Query(default=None, ge=1, le=6),
     db: Session = Depends(get_db),

@@ -18,12 +18,16 @@ before BST advances. **15 gates per fully gated session:**
 
 - **3 instructional baseline gates** — end of `tutorial`, `instruction`,
   `modeling` (scope `stage`, checkpoint `baseline`).
-- **12 loop gates** — each of the 6 DTT loops has **two**: `post_sd`
-  (post-SD-delivery) and `post_feedback` (post-feedback).
+- **12 loop gates** — each of the 6 DTT loops has **two**: `post_kid_response`
+  (after the child-behavior arc completes, before feedback) and `post_feedback`
+  (after feedback). The `post_kid_response` report measures the participant's
+  emotional reaction to the **child's behavior** — the PR/NR/AR manipulation —
+  NOT to the SD instruction, so its gate opens only once the kid has exhibited
+  its behavior/problem behavior and any prompting/HP/retry has resolved.
 
 Settled policies baked into the platform side:
 
-- **Gate opens** on `stage_complete` / `sd_delivered` / `feedback_delivered`;
+- **Gate opens** on `stage_complete` / `kid_response_complete` / `feedback_delivered`;
   **closes** on EITHER the matching self-report being submitted OR an operator
   **override**. `go_ahead` returns `proceed=false` only while an open gate is
   unsatisfied.
@@ -59,7 +63,7 @@ close-by-self-report rule (for reference) is:
 | checkpoint | satisfied by a self-report with |
 | --- | --- |
 | stage `baseline` | `phase == <stage>` (loop_index NULL) |
-| loop `post_sd` | `loop_index == N` and `phase == 'rehearsal'` |
+| loop `post_kid_response` | `loop_index == N` and `phase == 'rehearsal'` |
 | loop `post_feedback` | `loop_index == N` and `phase == 'feedback'` |
 
 ---
@@ -74,9 +78,9 @@ the go-signal (no inbound server needed in BST).
 | --- | --- | --- | --- |
 | register | `POST …/sync/register` | – | `{pb_order_group, support_condition, support_label, …}` — confirm alignment |
 | stage_complete | `POST …/sync/stage-complete` | `{stage}` | gate (opened) |
-| sd_delivered | `POST …/sync/sd-delivered` | `{loop_index, trial_name?}` | gate (opened) |
+| kid_response_complete | `POST …/sync/kid-response-complete` | `{loop_index, trial_name?}` | gate (opened) |
 | feedback_delivered | `POST …/sync/feedback-delivered` | `{loop_index, trial_name?, evaluation_summary?}` | gate (opened) |
-| go_ahead (poll) | `GET …/sync/go-ahead` | `?scope=stage|loop&checkpoint=baseline|post_sd|post_feedback&stage=…&loop_index=…` | `{proceed: bool, gate_found: bool, gate}` |
+| go_ahead (poll) | `GET …/sync/go-ahead` | `?scope=stage|loop&checkpoint=baseline|post_kid_response|post_feedback&stage=…&loop_index=…` | `{proceed: bool, gate_found: bool, gate}` |
 | override (operator) | `POST …/sync/override` | `{scope, checkpoint, stage?, loop_index?, operator?, reason?}` | gate (closed) |
 | session_complete | `POST …/sync/complete` | – | `{total_gates, open_gates, closed_gates, overridden_gates}` |
 
@@ -108,7 +112,7 @@ class SyncClient:
 
     async def register(self): ...                      # POST register
     async def stage_complete(self, stage): ...         # POST stage-complete {stage}
-    async def sd_delivered(self, loop_index, trial_name=None): ...
+    async def kid_response_complete(self, loop_index, trial_name=None): ...
     async def feedback_delivered(self, loop_index, trial_name=None, evaluation_summary=None): ...
     async def complete(self): ...                      # POST complete
 
@@ -176,73 +180,96 @@ if stage in ("tutorial", "instruction", "modeling"):
 
 ### 3.4 DTT loop gates — exact hooks
 
-Two barriers per loop. Recommended design keeps the main loop responsive (freeze
-/ system commands keep working during the wait) by polling in `main_dtt_loop`
-rather than blocking inside a handler. Add a small `ctx` field for the deferred
-transition.
+**The seam (re-traced).** A trial flows: `SD` → `KID_BEHAVIOR_1` →
+`REINFORCEMENT` → (on a wrong response, `PROMPTING` → `HP_SD` → `RETRY_SD`, each
+re-entering `KID_BEHAVIOR_*` then `REINFORCEMENT`). The **only** transition into
+`FEEDBACK` is `reinforcement_handler.py:81-82` (when `reinforcement_source` is
+`correct` or `retry`); every resolution path funnels through it. Therefore
+`feedback_handler.handle()` runs **only once the entire child-behavior arc —
+including any prompting/HP/retry and the reinforcement reaction — is complete,
+and before any feedback is spoken.** That is the correct seam for the first
+report: it measures the participant's reaction to the **child's behavior**
+(PR/NR/AR), not to the SD instruction.
 
-**Hook A — `post_sd`: `logic/dtt_module/handlers/sd_processing_handler.py`,
-`process_sd_result()` (~line 89, where it currently sets `state=KID`,
-`trial_state=KID_BEHAVIOR_1`).** Replace the direct transition with: emit
-progress, then defer the KID transition behind the gate.
+> The earlier draft put this hook in `sd_processing_handler` at the entry to the
+> KID state — that fires before the child has behaved and is wrong. It is removed;
+> `sd_processing_handler` is no longer a hook.
+
+Both per-loop gates live in **`logic/dtt_module/handlers/feedback_handler.py`,
+`handle()`** — gate 1 at the very top (before feedback is delivered), gate 2
+after feedback is spoken.
+
+**Hook A — `post_kid_response`: top of `feedback_handler.handle()`, before the
+feedback LEDs/speak (before ~line 36-86).**
 
 ```python
-# after  print(f"[SD DETECTED] {ctx.current_sd}")  and feedback fields are set:
-loop_index = get_sd_display_number(ctx.current_sd, ctx.latin_square_configuration)
-await sync.sd_delivered(loop_index, trial_name=ctx.current_sd)        # opens post_sd gate
-ctx.pending_go = {"scope": "loop", "loop_index": loop_index, "checkpoint": "post_sd"}
-ctx.pending_go_target = (CurrentState.KID, TrialState.KID_BEHAVIOR_1)  # deferred
-# do NOT set state/trial_state here; the main loop applies the target on proceed
+# child-behavior arc is complete (we are in FEEDBACK); feedback NOT yet delivered:
+loop_index = get_sd_display_number(ctx.trial_sd, ctx.latin_square_configuration)
+await sync.kid_response_complete(loop_index, trial_name=ctx.trial_sd)   # opens post_kid_response
+await sync.wait_for_go_ahead(scope="loop", loop_index=loop_index, checkpoint="post_kid_response")
+# ... existing feedback delivery (LEDs, build evaluation, expr.execute at ~line 86) ...
 ```
 
-**Hook B — `post_feedback`: `logic/dtt_module/handlers/feedback_handler.py`,
-`handle()` (after the feedback is spoken at ~line 86 and after
-`completed_sds.add(...)` at ~line 121, before it resets to `USER/SD` at ~line
-147).**
+**Hook B — `post_feedback`: same `handle()`, after the feedback is spoken (~line
+86) and after `completed_sds.add(...)` (~line 121), before it resets to `USER/SD`
+(~line 147).**
 
 ```python
 # after completed_sds.add(ctx.trial_sd):
-loop_index = get_sd_display_number(ctx.trial_sd, ctx.latin_square_configuration)
-await sync.feedback_delivered(loop_index, trial_name=ctx.trial_sd)    # opens post_feedback gate
+await sync.feedback_delivered(loop_index, trial_name=ctx.trial_sd)      # opens post_feedback
 if len(ctx.completed_sds) >= 6:
     ...  # existing session-complete behavior unchanged
     return
-ctx.pending_go = {"scope": "loop", "loop_index": loop_index, "checkpoint": "post_feedback"}
-ctx.pending_go_target = (CurrentState.USER, TrialState.SD)             # deferred
+await sync.wait_for_go_ahead(scope="loop", loop_index=loop_index, checkpoint="post_feedback")
+# existing reset to USER/SD
 ```
 
-**Hook C — the gate poll in `logic/dtt.py`, `main_dtt_loop()` (the
-`while DTT_IN_PROGRESS:` poll, ~line 350, before
-`await self.state_machine.process(...)` at ~line 454).**
+**Hook C — `main_dtt_loop()` poll (`logic/dtt.py`, the `while DTT_IN_PROGRESS:`
+loop ~line 350).** With the inline `wait_for_go_ahead` calls above, the main loop
+needs no change. **Responsive alternative** (keeps freeze / system-command
+detection live during the wait, since an inline `await` inside `feedback_handler`
+pauses the main loop): don't block in the handler — defer the transitions and let
+the main loop poll. Open gate 1 at the sole FEEDBACK transition
+(`reinforcement_handler.py:81-82`) instead of setting `FEEDBACK` directly:
 
 ```python
-# top of each loop iteration, after context refresh:
+# reinforcement_handler.py, the reinforcement_source in ("correct","retry") branch:
+loop_index = get_sd_display_number(ctx.trial_sd, ctx.latin_square_configuration)
+await sync.kid_response_complete(loop_index, trial_name=ctx.trial_sd)
+ctx.pending_go = {"scope": "loop", "loop_index": loop_index, "checkpoint": "post_kid_response"}
+ctx.pending_go_target = (CurrentState.TRAINER, TrialState.FEEDBACK)     # deferred; do not set here
+```
+
+open gate 2 at the end of `feedback_handler.handle()` the same way
+(`pending_go_target = (CurrentState.USER, TrialState.SD)`), and add the poll to
+`main_dtt_loop` before `state_machine.process(...)` (~line 454):
+
+```python
 if getattr(ctx, "pending_go", None) is not None:
     res = await sync.go_ahead(**ctx.pending_go)
     if res["proceed"]:
-        ctx.state, ctx.trial_state = ctx.pending_go_target            # apply deferred transition
+        ctx.state, ctx.trial_state = ctx.pending_go_target             # apply deferred transition
         ctx.pending_go = None
         ctx.pending_go_target = None
     await asyncio.sleep(0.1)
-    continue                                                          # stay gated; skip the rest
+    continue                                                           # stay gated; skip the rest
 ```
 
-Add to `TrialContext` (`logic/dtt_module/models/trial_context.py`):
-`pending_go: dict | None = None` and `pending_go_target: tuple | None = None`.
-
-**Minimal alternative** (fewer lines, but pauses freeze detection during the
-wait): drop Hook C and instead `await sync.wait_for_go_ahead(...)` inline right
-after the `sd_delivered` / `feedback_delivered` calls in Hooks A/B, then do the
-original transition. Acceptable because the wait is a deliberate self-report
-pause, but the responsive design above is recommended.
+with `pending_go: dict | None = None` and `pending_go_target: tuple | None = None`
+added to `TrialContext`. Tradeoff: more moving parts. Recommended default is the
+inline approach (simpler; the waits are deliberate self-report pauses). Either
+way gate 1 opens only after the kid-behavior arc completes and before feedback.
 
 ### 3.5 Net BST change
 - New `logic/sync_client.py`.
 - `BST()`: add `session_id`/`platform_base`, `register()`, `complete()`.
 - `BaseInteraction.execute()`: ~3 lines (covers all 3 instructional stages).
-- `sd_processing_handler` / `feedback_handler`: swap the direct transition for
-  emit + defer (~3 lines each).
-- `main_dtt_loop`: ~6-line gate-poll block; 2 new `TrialContext` fields.
+- `feedback_handler.handle()`: ~4 lines — both per-loop gates live here (gate 1
+  before the feedback speak, gate 2 after).
+- `sd_processing_handler` is **not** touched (the first report fires after the
+  child behaves, not at SD delivery).
+- Responsive alternative only: ~3 lines at `reinforcement_handler.py:81-82`, a
+  ~6-line poll block in `main_dtt_loop`, and 2 new `TrialContext` fields.
 - Zero changes to the state machine logic, the recognizer, or robot/perception
   behavior.
 
@@ -259,35 +286,35 @@ sequenceDiagram
     participant API as Data Platform (sync API)
     participant TAB as Tablet / Operator
 
+    participant C as Robot-child
+
     Note over BST: TrialState.SD
     T->>BST: speaks SD (recognized -> trial_sd)
     BST->>BST: loop_index = get_sd_display_number(trial_sd, config)
-    BST->>API: POST sd-delivered {loop_index}
-    API-->>BST: gate loop:N:post_sd OPEN
-    BST->>BST: ctx.pending_go = post_sd (defer KID transition)
+    Note over BST,C: KID_BEHAVIOR_* / reinforcement / prompting / HP / retry
+    C->>BST: child exhibits behavior (PR/NR/AR) — arc resolves to FEEDBACK
 
-    loop main_dtt_loop poll (0.1s)
-        BST->>API: GET go-ahead (loop, N, post_sd)
+    Note over BST: enter feedback_handler.handle() — feedback NOT yet delivered
+    BST->>API: POST kid-response-complete {loop_index=N}
+    API-->>BST: gate loop:N:post_kid_response OPEN
+
+    loop poll until released
+        BST->>API: GET go-ahead (loop, N, post_kid_response)
         API-->>BST: proceed=false
     end
-
     TAB->>API: POST self-report {loop_index=N, phase=rehearsal}
-    Note over API: matching report -> gate closes (closed_by=self_report)
-    BST->>API: GET go-ahead (loop, N, post_sd)
+    Note over API: reaction to the CHILD'S behavior -> gate closes (self_report)
+    BST->>API: GET go-ahead (loop, N, post_kid_response)
     API-->>BST: proceed=true
-    BST->>BST: apply target -> KID_BEHAVIOR_1
 
-    Note over BST: kid behavior / reinforcement / prompting ... -> FEEDBACK
     BST->>T: deliver feedback (spoken)
     BST->>API: POST feedback-delivered {loop_index=N}
     API-->>BST: gate loop:N:post_feedback OPEN
-    BST->>BST: ctx.pending_go = post_feedback (defer advance)
 
-    loop main_dtt_loop poll (0.1s)
+    loop poll until released
         BST->>API: GET go-ahead (loop, N, post_feedback)
         API-->>BST: proceed=false
     end
-
     alt participant submits
         TAB->>API: POST self-report {loop_index=N, phase=feedback}
         Note over API: gate closes (closed_by=self_report)

@@ -5,7 +5,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 Stage = Literal["tutorial", "instruction", "modeling"]
-LoopCheckpoint = Literal["post_sd", "post_feedback"]
+LoopCheckpoint = Literal["post_kid_response", "post_feedback"]
 
 
 class SessionRegisterResult(BaseModel):
@@ -22,7 +22,10 @@ class StageCompleteIn(BaseModel):
     stage: Stage
 
 
-class SdDeliveredIn(BaseModel):
+class KidResponseIn(BaseModel):
+    """Opened after the child-behavior arc completes (kid has exhibited its
+    behavior/problem behavior), before the trainer's feedback."""
+
     loop_index: int = Field(..., ge=1, le=6)
     trial_name: Optional[str] = None  # bst trial-name, for provenance/logging
 
@@ -35,7 +38,7 @@ class FeedbackDeliveredIn(BaseModel):
 
 class OverrideIn(BaseModel):
     scope: Literal["stage", "loop"]
-    checkpoint: Literal["baseline", "post_sd", "post_feedback"]
+    checkpoint: Literal["baseline", "post_kid_response", "post_feedback"]
     stage: Optional[Stage] = None
     loop_index: Optional[int] = Field(default=None, ge=1, le=6)
     operator: Optional[str] = None

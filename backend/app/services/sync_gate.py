@@ -3,16 +3,19 @@
 Implements the gate state machine the BST robot run waits on. A gate is a barrier
 keyed by (session_id, gate_key); gate_key canonically encodes scope/ref/checkpoint.
 
-  open  : a gate opens on stage_complete / sd_delivered / feedback_delivered.
+  open  : a gate opens on stage_complete / kid_response_complete / feedback_delivered.
   close : a gate closes on EITHER the matching self-report being submitted
           (closed_by='self_report') OR an operator override (closed_by='override').
   poll  : go_ahead returns proceed=false ONLY while an open gate is unsatisfied;
           true once it is closed (or was never opened).
 
 Self-report -> checkpoint matching (the close-by-self-report rule):
-  * stage 'baseline'      : a participant_self_reports row with phase == stage_key
-  * loop  'post_sd'       : a row with that loop_index and phase == 'rehearsal'
-  * loop  'post_feedback' : a row with that loop_index and phase == 'feedback'
+  * stage 'baseline'           : a participant_self_reports row with phase == stage_key
+  * loop  'post_kid_response'  : a row with that loop_index and phase == 'rehearsal'
+                                 (measures the participant's reaction to the CHILD'S
+                                 behavior -- the PR/NR/AR manipulation -- collected
+                                 after the kid-behavior arc and before feedback)
+  * loop  'post_feedback'      : a row with that loop_index and phase == 'feedback'
 
 Operator override writes a 'self_report_gate_overridden' timeline marker so an
 analyst sees the measurement was skipped-by-override, not missing-by-error. Every
@@ -41,9 +44,9 @@ logger = logging.getLogger("bst.sync_gate")
 
 STAGES = ("tutorial", "instruction", "modeling")
 STAGE_CHECKPOINT = "baseline"
-LOOP_CHECKPOINTS = ("post_sd", "post_feedback")
+LOOP_CHECKPOINTS = ("post_kid_response", "post_feedback")
 # self-report phase that satisfies each loop checkpoint
-LOOP_CHECKPOINT_PHASE = {"post_sd": "rehearsal", "post_feedback": "feedback"}
+LOOP_CHECKPOINT_PHASE = {"post_kid_response": "rehearsal", "post_feedback": "feedback"}
 
 
 def _unprocessable(detail: str) -> HTTPException:
