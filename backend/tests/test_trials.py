@@ -6,7 +6,7 @@ range/FK problems must return a clean 422, never a DB 500.
 """
 
 
-def _running_session(client, protocol_id, pid="P050", sid="P050_S1"):
+def _running_session(client, protocol_id, pid="P050", sid="P050_S1", pb_order_group=1):
     client.post("/participants", json={"participant_id": pid})
     client.post(
         "/sessions",
@@ -15,8 +15,10 @@ def _running_session(client, protocol_id, pid="P050", sid="P050_S1"):
             "participant_id": pid,
             "scenario_type": "bst_dtt",
             "protocol_id": protocol_id,
+            "pb_order_group": pb_order_group,
         },
     )
+    # starting the session materializes the six dtt_loops rows trials reference
     client.post(f"/sessions/{sid}/start")
     return sid
 
@@ -115,6 +117,27 @@ def test_trial_good_steps_accepted(client, protocol_id):
 def test_trial_loop_index_out_of_range_is_422(client, protocol_id):
     sid = _running_session(client, protocol_id)
     assert client.post(f"/sessions/{sid}/trials", json=_valid_trial(loop_index=7)).status_code == 422
+
+
+def test_trial_loop_index_without_generated_loops_is_422(client, protocol_id):
+    # A session started without a pb_order_group generates no dtt_loops, so a
+    # loop-indexed trial must 422 against the real (empty) loop set, not pass a
+    # bare 1-6 range check.
+    client.post("/participants", json={"participant_id": "P052"})
+    client.post(
+        "/sessions",
+        json={
+            "session_id": "P052_S1",
+            "participant_id": "P052",
+            "scenario_type": "bst_dtt",
+            "protocol_id": protocol_id,
+        },
+    )
+    client.post("/sessions/P052_S1/start")
+    assert client.get("/sessions/P052_S1/loops").json() == []
+    r = client.post("/sessions/P052_S1/trials", json=_valid_trial(loop_index=1))
+    assert r.status_code == 422, r.text
+    assert "dtt_loops" in r.json()["detail"]
 
 
 def test_trial_bad_correctness_enum_is_422(client, protocol_id):

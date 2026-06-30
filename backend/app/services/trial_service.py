@@ -16,7 +16,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_utc
-from app.models.dtt import DttPhase, DttTrial
+from app.models.dtt import DttLoop, DttPhase, DttTrial
 from app.models.session import StudySession
 from app.services.protocol import get_protocol_config
 from app.services.timeline import compute_session_time_ms, record_timeline_event
@@ -34,6 +34,34 @@ def create_trial(db: Session, session: StudySession, payload) -> DttTrial:
     cfg = get_protocol_config(db, session.protocol_id)
     if cfg is None:
         raise _unprocessable("protocol config not found for this session")
+
+    # loop_index must reference a real generated dtt_loops row for THIS session,
+    # not merely fall in 1-6. Loops are materialized at session start from the
+    # pb_order_group Latin square; a trial cannot reference a loop that was never
+    # generated (e.g. a session started without a pb_order_group). Clean 422,
+    # never a DB 500 (the protocol_id lesson).
+    if payload.loop_index is not None:
+        loop = db.scalar(
+            select(DttLoop).where(
+                DttLoop.session_id == session.session_id,
+                DttLoop.loop_index == payload.loop_index,
+            )
+        )
+        if loop is None:
+            generated = db.scalars(
+                select(DttLoop.loop_index)
+                .where(DttLoop.session_id == session.session_id)
+                .order_by(DttLoop.loop_index)
+            ).all()
+            available = (
+                str(generated)
+                if generated
+                else "none (was the session started with a pb_order_group?)"
+            )
+            raise _unprocessable(
+                f"loop_index {payload.loop_index} has no dtt_loops row for session "
+                f"'{session.session_id}'; generated loops: {available}"
+            )
 
     # phase
     phases = {p["phase_key"]: p for p in cfg.get("phases", [])}

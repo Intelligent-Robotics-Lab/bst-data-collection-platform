@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import SessionTimelineEvent
+from app.models.dtt import DttLoop
 from app.models.session import StudySession
+from app.schemas.dtt_loop import DttLoopRead
 from app.schemas.session import SessionCreate, SessionRead
 from app.services.session_service import (
     apply_transition,
@@ -38,6 +40,19 @@ def list_sessions(db: Session = Depends(get_db)):
 @router.get("/{session_id}", response_model=SessionRead)
 def get_session(session_id: str, db: Session = Depends(get_db)):
     return get_session_or_404(db, session_id)
+
+
+@router.get("/{session_id}/loops", response_model=list[DttLoopRead])
+def get_loops(session_id: str, db: Session = Depends(get_db)):
+    """The six dtt_loops rows generated for the session at start, ordered by
+    loop position. Empty until the session is started (and only if it carries a
+    pb_order_group)."""
+    get_session_or_404(db, session_id)
+    return db.scalars(
+        select(DttLoop)
+        .where(DttLoop.session_id == session_id)
+        .order_by(DttLoop.loop_index)
+    ).all()
 
 
 # --- lifecycle transitions ---
