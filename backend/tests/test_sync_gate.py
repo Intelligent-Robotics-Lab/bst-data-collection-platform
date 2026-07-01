@@ -42,6 +42,10 @@ def _go(client, sid, **params):
     return client.get(f"/sessions/{sid}/sync/go-ahead", params=params).json()
 
 
+def _assignment(client):
+    return client.get("/tablet/assignment").json()
+
+
 # --- register ----------------------------------------------------------------
 
 def test_register_returns_between_subject_mapping(client, protocol_id):
@@ -226,3 +230,75 @@ def test_full_session_has_fifteen_gates(client, protocol_id):
         client.post(f"/sessions/{sid}/sync/feedback-delivered", json={"loop_index": loop})
     summary = client.post(f"/sessions/{sid}/sync/complete").json()
     assert summary["total_gates"] == 15
+
+
+# --- auto-push of the self-report form on gate open --------------------------
+
+def test_stage_gate_auto_pushes_baseline_form(client, protocol_id):
+    sid = _session(client, protocol_id)
+    client.post(f"/sessions/{sid}/sync/stage-complete", json={"stage": "instruction"})
+    a = _assignment(client)
+    assert a["form_type"] == "self_report"
+    assert a["session_id"] == sid
+    assert a["self_report_context"] == {
+        "phase": "instruction",
+        "timepoint": "post",
+        "function_class": "baseline",
+        "before_after_robot_action": "na",
+    }
+
+
+def test_loop_gate_auto_push_resolves_function_class_from_dtt_loops(client, protocol_id):
+    sid = _session(client, protocol_id, group=1)  # group 1: loop 2 = NR
+    client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 2})
+    assert _assignment(client)["self_report_context"] == {
+        "loop_index": 2,
+        "phase": "rehearsal",
+        "timepoint": "post",
+        "function_class": "NR",  # resolved server-side, not sent by bst
+        "before_after_robot_action": "after",
+    }
+    client.post(f"/sessions/{sid}/sync/feedback-delivered", json={"loop_index": 2})
+    assert _assignment(client)["self_report_context"] == {
+        "loop_index": 2,
+        "phase": "feedback",
+        "timepoint": "post",
+        "function_class": "NR",
+        "before_after_robot_action": "after",
+    }
+
+
+def test_auto_pushed_context_submits_and_closes_the_gate(client, protocol_id):
+    # The pushed context must use the exact field names/values the submit endpoint
+    # accepts: echo it straight back (as the tablet does) and it should 201 and
+    # close the gate -- the guard against the earlier wrong-field-name 422s.
+    sid = _session(client, protocol_id, group=1)
+    client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 2})
+    ctx = _assignment(client)["self_report_context"]
+    r = client.post(f"/sessions/{sid}/self-reports", json={**ctx, "pleasure": 2.0})
+    assert r.status_code == 201, r.text
+    assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is True
+
+
+def test_override_does_not_auto_push(client, protocol_id):
+    sid = _session(client, protocol_id)
+    client.post("/tablet/clear")
+    client.post(
+        f"/sessions/{sid}/sync/override",
+        json={"scope": "stage", "stage": "tutorial", "checkpoint": "baseline"},
+    )
+    assert _assignment(client)["form_type"] == "idle"  # override never pushes a form
+
+
+def test_push_failure_is_non_fatal(client, protocol_id, monkeypatch):
+    from app.services import sync_gate
+
+    def boom(**kwargs):
+        raise RuntimeError("tablet offline")
+
+    monkeypatch.setattr(sync_gate, "set_assignment", boom)
+    sid = _session(client, protocol_id, group=1)
+    # gate still opens (201) and the robot still waits (proceed=false)
+    r = client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 2})
+    assert r.status_code == 201, r.text
+    assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is False

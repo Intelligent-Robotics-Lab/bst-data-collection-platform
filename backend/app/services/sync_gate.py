@@ -34,10 +34,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_utc
+from app.models.dtt import DttLoop
 from app.models.session import StudySession
 from app.models.signals import ParticipantSelfReport
 from app.models.sync import SyncGate
 from app.services.session_service import get_session_or_404
+from app.services.tablet import set_assignment
 from app.services.timeline import record_timeline_event
 
 logger = logging.getLogger("bst.sync_gate")
@@ -137,12 +139,98 @@ def _gate_dict(gate: SyncGate) -> dict:
     }
 
 
+# --- auto-push of the self-report form ---------------------------------------
+
+def _resolve_function_class(db: Session, session_id: str, loop_index: int) -> str | None:
+    """Resolve function_class server-side from the session's dtt_loops row, so BST
+    never has to send it. None if the loop row is missing (e.g. loops not yet
+    generated) -- logged by the caller; the gate still opens."""
+    loop = db.scalar(
+        select(DttLoop).where(
+            DttLoop.session_id == session_id, DttLoop.loop_index == loop_index
+        )
+    )
+    return loop.function_class if loop else None
+
+
+def self_report_context_for_gate(db: Session, session: StudySession, gate: SyncGate) -> dict:
+    """The deterministic self-report form context for a gate. Field names/values
+    match SelfReportContext exactly (the submit endpoint), so the tablet can echo
+    it straight back on submit without a 422."""
+    if gate.scope == "stage":
+        # instructional baseline: no loop; function_class baseline; before/after na
+        return {
+            "phase": gate.stage_key,  # tutorial | instruction | modeling
+            "timepoint": "post",
+            "function_class": "baseline",
+            "before_after_robot_action": "na",
+        }
+    # loop gate: function_class resolved from dtt_loops; reaction to the robot action
+    phase = "rehearsal" if gate.checkpoint == "post_kid_response" else "feedback"
+    return {
+        "loop_index": gate.loop_index,
+        "phase": phase,
+        "timepoint": "post",
+        "function_class": _resolve_function_class(db, session.session_id, gate.loop_index),
+        "before_after_robot_action": "after",
+    }
+
+
+def _auto_push_self_report(db: Session, session: StudySession, gate: SyncGate) -> None:
+    """Push the self-report form to the tablet for a freshly opened gate. Best
+    effort: any failure is logged and swallowed so the gate stays open and the
+    robot keeps waiting (the operator can retry the push or override). The gate
+    itself is already committed before this runs."""
+    try:
+        context = self_report_context_for_gate(db, session, gate)
+        if context.get("function_class") is None:
+            logger.warning(
+                "no dtt_loops row for %s loop %s; pushing self-report with null "
+                "function_class (gate %s)",
+                session.session_id,
+                gate.loop_index,
+                gate.gate_key,
+            )
+        set_assignment(
+            form_type="self_report",
+            session_id=session.session_id,
+            self_report_context=context,
+        )
+        record_timeline_event(
+            db,
+            session=session,
+            source="tablet",
+            type="form_pushed",
+            payload={
+                "form_type": "self_report",
+                "auto": True,
+                "gate_key": gate.gate_key,
+                "self_report_context": context,
+            },
+            ref_table="sessions",
+            ref_id=session.session_id,
+        )
+        db.commit()
+    except Exception:  # noqa: BLE001 - push is best effort; never break the gate
+        logger.exception(
+            "auto-push of self-report form failed for gate %s (%s); gate stays open",
+            gate.gate_key,
+            session.session_id,
+        )
+        db.rollback()
+
+
 # --- open --------------------------------------------------------------------
 
-def open_gate(db: Session, session: StudySession, ident: dict) -> SyncGate:
+def open_gate(
+    db: Session, session: StudySession, ident: dict, *, auto_push: bool = False
+) -> SyncGate:
     """Open (create if absent) the gate for an identity. Idempotent: an existing
     gate is returned untouched, so a re-sent trigger never reopens a gate already
-    satisfied or overridden (raw-data / measurement integrity)."""
+    satisfied or overridden (raw-data / measurement integrity).
+
+    ``auto_push`` (set by the three opener endpoints, NOT by override) pushes the
+    self-report form to the tablet when a NEW gate opens."""
     gate = _find_gate(db, session.session_id, ident["gate_key"])
     if gate is not None:
         return gate
@@ -179,6 +267,10 @@ def open_gate(db: Session, session: StudySession, ident: dict) -> SyncGate:
     )
     db.commit()
     db.refresh(gate)
+
+    # Gate is durably open; now best-effort push the self-report form to the tablet.
+    if auto_push:
+        _auto_push_self_report(db, session, gate)
     return gate
 
 
@@ -351,7 +443,7 @@ def open_stage_gate(db: Session, session: StudySession, stage_key: str) -> SyncG
     ident = resolve_gate_identity(
         scope="stage", stage_key=stage_key, loop_index=None, checkpoint="baseline"
     )
-    return open_gate(db, session, ident)
+    return open_gate(db, session, ident, auto_push=True)
 
 
 def open_loop_gate(
@@ -360,4 +452,4 @@ def open_loop_gate(
     ident = resolve_gate_identity(
         scope="loop", stage_key=None, loop_index=loop_index, checkpoint=checkpoint
     )
-    return open_gate(db, session, ident)
+    return open_gate(db, session, ident, auto_push=True)
