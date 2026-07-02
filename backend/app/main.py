@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api import (
+    exports,
     health,
     notes,
     participants,
@@ -83,6 +84,7 @@ app.include_router(questionnaires.router)
 app.include_router(questionnaires.responses_router)
 app.include_router(self_reports.router)
 app.include_router(perception.router)
+app.include_router(exports.router)
 app.include_router(tablet.router)
 
 # Minimal participant-intake UI (interim; superseded by the React+Vite app in a
