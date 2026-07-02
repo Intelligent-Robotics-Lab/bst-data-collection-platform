@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BST Operator Console</title>
+  <style>
+    /* Operator console v1 - reliability over flash. Palette mirrors the tablet page. */
+    :root { --accent:#1a5; --accent-dark:#178; --ink:#1a1a1a; --muted:#667; --line:#e2e6ea;
+            --ok:#1a7f37; --warn:#b45309; --bad:#c0341d; --bg:#f4f6f8; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin:0; color:var(--ink); background:var(--bg); }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
+
+    /* Header */
+    header.bar { position: sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid var(--line);
+      padding:.6rem 1.25rem; display:flex; flex-wrap:wrap; gap:.6rem 1.2rem; align-items:center; }
+    .idblock { display:flex; flex-direction:column; line-height:1.15; }
+    .idblock .pid { font-size:.8rem; color:var(--muted); }
+    .idblock .sid { font-size:1.15rem; font-weight:700; font-variant-numeric:tabular-nums; }
+    .idblock .sid .none { color:#aab; font-weight:500; }
+    .grow { flex:1 1 auto; }
+    .pill { display:inline-block; padding:.15rem .55rem; border-radius:999px; font-size:.8rem; font-weight:600;
+      border:1px solid var(--line); background:#fff; color:var(--muted); white-space:nowrap; }
+    .pill.state-running { background:#e8f7ef; color:var(--ok); border-color:#bfe6cd; }
+    .pill.state-created { background:#eef2f6; color:var(--muted); }
+    .pill.state-paused  { background:#fef3e2; color:var(--warn); border-color:#f6dcae; }
+    .pill.state-completed,.pill.state-stopped { background:#eef2f6; color:#345; }
+    .pill.ok{background:#e8f7ef;color:var(--ok);border-color:#bfe6cd;}
+    .pill.warn{background:#fef3e2;color:var(--warn);border-color:#f6dcae;}
+    .pill.bad{background:#fdecea;color:var(--bad);border-color:#f6c4bd;}
+    button.note-btn { border:1px solid var(--line); background:#fff; border-radius:9px; padding:.45rem .8rem;
+      font-size:.9rem; cursor:pointer; }
+
+    /* Stepper */
+    .stepper { display:flex; gap:.4rem; margin:1rem 0 1.2rem; flex-wrap:wrap; }
+    .step { flex:1 1 0; min-width:120px; text-align:center; padding:.5rem .3rem; border:1px solid var(--line);
+      border-radius:10px; background:#fff; color:var(--muted); font-size:.9rem; cursor:pointer; user-select:none; }
+    .step.active { border-color:var(--accent); background:#e8f7ef; color:var(--accent-dark); font-weight:700; }
+    .step.locked { opacity:.5; cursor:not-allowed; }
+    .step .n { font-size:.72rem; display:block; }
+
+    /* Cards */
+    .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:1rem 1.1rem; margin-bottom:1rem; }
+    .card h2 { font-size:1.15rem; margin:0 0 .2rem; }
+    .card p.hint { color:var(--muted); font-size:.9rem; margin:.1rem 0 .9rem; }
+    label.fld { display:block; margin:.5rem 0; font-size:.95rem; }
+    label.fld span { display:block; color:var(--muted); font-size:.82rem; margin-bottom:.2rem; }
+    input[type=text], select, textarea { width:100%; font-size:1rem; padding:.55rem .6rem; border:2px solid #cdd5db;
+      border-radius:9px; font-family:inherit; }
+    .row { display:flex; gap:.8rem; flex-wrap:wrap; }
+    .row > * { flex:1 1 200px; }
+    button.primary { background:var(--accent); color:#fff; border:none; border-radius:10px; padding:.7rem 1.1rem;
+      font-size:1rem; font-weight:600; cursor:pointer; }
+    button.primary:disabled { background:#9bb; cursor:default; }
+    button.secondary { background:#fff; border:1px solid var(--line); border-radius:10px; padding:.6rem .9rem;
+      font-size:.95rem; cursor:pointer; }
+    button.danger { background:var(--bad); color:#fff; border:none; border-radius:10px; padding:.6rem 1rem;
+      font-size:1rem; font-weight:700; cursor:pointer; }
+    button.danger:disabled { background:#d8b0aa; cursor:default; }
+    ul.check { list-style:none; padding:0; margin:.3rem 0; }
+    ul.check li { padding:.25rem 0; }
+    ul.check label { cursor:pointer; }
+    .qrow { display:flex; align-items:center; gap:.6rem; padding:.4rem 0; border-top:1px solid var(--line); }
+    .qrow:first-child { border-top:none; }
+    .qrow .qname { flex:1 1 auto; }
+    .msg { min-height:1.2rem; font-size:.9rem; margin-top:.4rem; }
+    .msg.err { color:var(--bad); } .msg.ok { color:var(--ok); }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    @media (max-width:720px){ .grid2{ grid-template-columns:1fr; } }
+    .big { font-size:1.5rem; font-weight:700; }
+    .kv { display:flex; justify-content:space-between; padding:.28rem 0; border-top:1px solid var(--line); font-variant-numeric:tabular-nums; }
+    .kv:first-child{border-top:none;}
+    .gate-open { border:2px solid var(--warn); background:#fff8ef; border-radius:10px; padding:.8rem 1rem; }
+    .gate-none { color:var(--muted); }
+    .waiting { font-variant-numeric:tabular-nums; font-weight:700; }
+    .notelist { max-height:180px; overflow:auto; font-size:.88rem; }
+    .notelist .n { padding:.3rem 0; border-top:1px solid var(--line); }
+    .notelist .n:first-child{border-top:none;}
+    .stale { color:var(--warn); font-size:.82rem; }
+    /* Modal */
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:20; }
+    .modal-bg.show { display:flex; }
+    .modal { background:#fff; border-radius:12px; padding:1.1rem; width:min(520px,92vw); }
+    .hidden { display:none !important; }
+    footer.tip { color:var(--muted); font-size:.82rem; text-align:center; margin-top:1rem; }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <div class="idblock">
+      <span class="pid" id="hdr-pid">participant —</span>
+      <span class="sid" id="hdr-sid"><span class="none">no session yet</span></span>
+    </div>
+    <span class="pill" id="hdr-stage">Setup</span>
+    <span class="pill state-created" id="hdr-state">—</span>
+    <span class="grow"></span>
+    <button class="note-btn" id="btn-note" disabled>＋ Add note</button>
+  </header>
+
+  <div class="wrap">
+    <div class="stepper" id="stepper"></div>
+
+    <!-- STAGE 1: SETUP -->
+    <section id="stage-setup" class="stage">
+      <div class="card">
+        <h2>Setup &amp; Configure</h2>
+        <p class="hint">Create the session here. This screen owns the one canonical session ID used everywhere.</p>
+        <div class="row">
+          <label class="fld"><span>Participant ID</span><input type="text" id="in-pid" placeholder="P001" autocomplete="off"></label>
+          <label class="fld"><span>Session ID</span><input type="text" id="in-sid" placeholder="P001_S1" autocomplete="off"></label>
+        </div>
+        <div class="row">
+          <label class="fld"><span>PB order group</span>
+            <select id="in-group"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+          <label class="fld"><span>Support condition</span>
+            <select id="in-support"><option value="1">supportive</option><option value="0">neutral</option></select></label>
+        </div>
+        <button class="primary" id="btn-create">Create &amp; start session</button>
+        <div class="msg" id="setup-msg"></div>
+      </div>
+      <div class="card">
+        <h2>Pre-session checklist</h2>
+        <p class="hint">You can advance once the session is running; the checklist is your reminder.</p>
+        <ul class="check" id="pre-check"></ul>
+      </div>
+    </section>
+
+    <!-- STAGE 2: ONBOARDING -->
+    <section id="stage-onboarding" class="stage hidden">
+      <div class="card">
+        <h2>Onboarding checklist</h2>
+        <ul class="check" id="onboard-check"></ul>
+      </div>
+      <div class="card">
+        <h2>Pre-questionnaires → tablet</h2>
+        <p class="hint">Push each to the tablet; status updates as the participant submits.</p>
+        <div id="pre-q"></div>
+        <div class="msg" id="preq-msg"></div>
+      </div>
+    </section>
+
+    <!-- STAGE 3: LIVE -->
+    <section id="stage-live" class="stage hidden">
+      <div class="grid2">
+        <div class="card">
+          <h2>Progress</h2>
+          <div class="kv"><span>Current phase</span><span class="big" id="live-phase">—</span></div>
+          <div class="kv"><span>Current loop</span><span class="big" id="live-loop">—</span></div>
+          <div class="kv"><span>Gates opened / closed / overridden</span><span id="live-gatecounts">—</span></div>
+          <div class="stale hidden" id="live-stale"></div>
+        </div>
+        <div class="card">
+          <h2>Current gate</h2>
+          <div id="live-gate"><div class="gate-none">No open gate.</div></div>
+          <button class="danger hidden" id="btn-override" style="margin-top:.8rem;">Override current gate</button>
+          <div class="msg" id="override-msg"></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h2>Status</h2>
+          <div class="kv"><span>Recording</span><span id="stat-rec" class="pill">—</span></div>
+          <div class="kv"><span>Perception</span><span id="stat-perc" class="pill">—</span></div>
+        </div>
+        <div class="card">
+          <h2>Notes</h2>
+          <div class="notelist" id="live-notes">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- STAGE 4: POST -->
+    <section id="stage-post" class="stage hidden">
+      <div class="card">
+        <h2>Post-questionnaires → tablet</h2>
+        <div id="post-q"></div>
+        <div class="msg" id="postq-msg"></div>
+      </div>
+      <div class="card">
+        <h2>Qualitative responses</h2>
+        <label class="fld"><span>Notes (saved to the session record)</span><textarea id="qual-note" rows="3"></textarea></label>
+        <button class="secondary" id="btn-qual">Save qualitative note</button>
+        <div class="msg" id="qual-msg"></div>
+      </div>
+      <div class="card">
+        <h2>Debrief checklist</h2>
+        <ul class="check" id="debrief-check"></ul>
+      </div>
+    </section>
+
+    <!-- STAGE 5: CLOSEOUT -->
+    <section id="stage-closeout" class="stage hidden">
+      <div class="card">
+        <h2>Data-completeness summary</h2>
+        <button class="secondary" id="btn-refresh-summary">Refresh counts</button>
+        <div id="summary" style="margin-top:.7rem;">—</div>
+      </div>
+      <div class="card">
+        <h2>Export</h2>
+        <p class="hint">Read-only: writes the raw dumps + analysis frames + data dictionary to the exports directory.</p>
+        <button class="primary" id="btn-export">Generate export</button>
+        <div class="msg" id="export-msg"></div>
+      </div>
+      <div class="card">
+        <h2>Reset for next participant</h2>
+        <ul class="check" id="reset-check"></ul>
+        <button class="secondary" id="btn-reset">Clear console for next participant</button>
+      </div>
+    </section>
+
+    <footer class="tip">Operator Console v1 · all actions are deliberate · override is the gate safety valve</footer>
+  </div>
+
+  <!-- Note modal -->
+  <div class="modal-bg" id="note-modal">
+    <div class="modal">
+      <h2 style="margin-top:0;">Add note</h2>
+      <textarea id="note-text" rows="3" placeholder="Timestamped note to the session record…"></textarea>
+      <div class="msg" id="note-msg"></div>
+      <div style="display:flex; gap:.6rem; justify-content:flex-end; margin-top:.6rem;">
+        <button class="secondary" id="note-cancel">Cancel</button>
+        <button class="primary" id="note-save">Save note</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// Operator Console v1. Vanilla JS, no framework. Every network call goes through
+// api() which never throws; callers handle {ok,status,data,error} so no failure
+// can crash the page or the running session. The console only issues safe reads
+// plus deliberate operator writes (create session, push forms, note, override,
+// export); it never mutates raw records.
+// ---------------------------------------------------------------------------
+
+const STAGES = ["setup","onboarding","live","post","closeout"];
+const STAGE_LABEL = { setup:"Setup", onboarding:"Onboarding", live:"Live", post:"Post", closeout:"Closeout" };
+
+const S = {
+  pid: null, sid: null, running: false, state: null,
+  stage: "setup", pollTimer: null,
+};
+
+// --- tiny helpers -----------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+function setMsg(id, text, kind) { const e=$(id); if(!e) return; e.textContent=text||""; e.className="msg"+(kind?(" "+kind):""); }
+function fmtDur(ms){ if(ms==null||ms<0)ms=0; const s=Math.floor(ms/1000); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+
+async function api(method, path, body) {
+  try {
+    const opt = { method, headers: {} };
+    if (body !== undefined) { opt.headers["Content-Type"]="application/json"; opt.body=JSON.stringify(body); }
+    const r = await fetch(path, opt);
+    let data=null; try { data = await r.json(); } catch(_) {}
+    if (!r.ok) {
+      const detail = (data && (data.detail||data.message)) || (r.status+" "+r.statusText);
+      return { ok:false, status:r.status, error:(typeof detail==="string"?detail:JSON.stringify(detail)) };
+    }
+    return { ok:true, status:r.status, data };
+  } catch (e) {
+    return { ok:false, status:0, error:"network error: "+(e && e.message ? e.message : e) };
+  }
+}
+
+// --- header + stepper -------------------------------------------------------
+function renderHeader() {
+  $("hdr-pid").textContent = "participant " + (S.pid || "—");
+  $("hdr-sid").innerHTML = S.sid ? S.sid : '<span class="none">no session yet</span>';
+  $("hdr-stage").textContent = STAGE_LABEL[S.stage];
+  const st = S.state || "—";
+  const stEl = $("hdr-state"); stEl.textContent = st;
+  stEl.className = "pill state-" + (S.state || "created");
+  $("btn-note").disabled = !S.sid;
+}
+function renderStepper() {
+  const el = $("stepper"); el.innerHTML = "";
+  STAGES.forEach((stg, i) => {
+    const d = document.createElement("div");
+    const locked = (stg !== "setup") && !S.running;
+    d.className = "step" + (S.stage===stg?" active":"") + (locked?" locked":"");
+    d.innerHTML = '<span class="n">Step '+(i+1)+'</span>'+STAGE_LABEL[stg];
+    d.onclick = () => { if (!locked) goStage(stg); };
+    el.appendChild(d);
+  });
+}
+function goStage(stg) {
+  S.stage = stg;
+  STAGES.forEach(x => $("stage-"+x).classList.toggle("hidden", x!==stg));
+  renderHeader(); renderStepper();
+  stopPoll();
+  if (stg==="live") startPoll();
+  if (stg==="onboarding") loadQuestionnaires("pre","pre-q","preq-msg");
+  if (stg==="post") loadQuestionnaires("post","post-q","postq-msg");
+  if (stg==="closeout") refreshSummary();
+}
+
+// --- checklists (local UI reminders; not persisted) -------------------------
+function checklist(id, items) {
+  const ul = $(id); ul.innerHTML = "";
+  items.forEach((label, i) => {
+    const li=document.createElement("li");
+    li.innerHTML = '<label><input type="checkbox" id="'+id+'-'+i+'"> '+label+'</label>';
+    ul.appendChild(li);
+  });
+}
+
+// --- Stage 1: setup ---------------------------------------------------------
+$("btn-create").onclick = async () => {
+  const pid=$("in-pid").value.trim(), sid=$("in-sid").value.trim();
+  const group=parseInt($("in-group").value,10), support=parseInt($("in-support").value,10);
+  if (!pid || !sid) { setMsg("setup-msg","Participant ID and Session ID are required.","err"); return; }
+  const btn=$("btn-create"); btn.disabled=true; setMsg("setup-msg","Creating…");
+
+  // 1) participant (409 = already exists is fine)
+  let r = await api("POST","/participants",{participant_id:pid});
+  if (!r.ok && r.status!==409) { setMsg("setup-msg","Participant: "+r.error,"err"); btn.disabled=false; return; }
+
+  // 2) attach a registered protocol if one exists (best effort; keeps trials/exports coherent)
+  let protocol_id = null;
+  const pr = await api("GET","/protocols");
+  if (pr.ok && Array.isArray(pr.data) && pr.data.length) protocol_id = pr.data[0].protocol_id;
+
+  // 3) create session
+  const payload = { session_id:sid, participant_id:pid, scenario_type:"bst_dtt",
+                    pb_order_group:group, support_condition:support };
+  if (protocol_id!=null) payload.protocol_id = protocol_id;
+  r = await api("POST","/sessions",payload);
+  if (!r.ok) { setMsg("setup-msg","Session: "+r.error,"err"); btn.disabled=false; return; }
+
+  // 4) start (generates dtt_loops)
+  r = await api("POST","/sessions/"+encodeURIComponent(sid)+"/start");
+  if (!r.ok) { setMsg("setup-msg","Start: "+r.error,"err"); btn.disabled=false; return; }
+
+  S.pid=pid; S.sid=sid; S.state=r.data.state; S.running=(r.data.state==="running");
+  setMsg("setup-msg","Session created and running. Canonical ID: "+sid+" — use this everywhere.","ok");
+  renderHeader(); renderStepper();
+};
+
+// --- Questionnaire push + status -------------------------------------------
+async function loadQuestionnaires(timepoint, containerId, msgId) {
+  const box=$(containerId); box.innerHTML="Loading…";
+  const r = await api("GET","/questionnaires?timepoint="+timepoint);
+  if (!r.ok) { box.innerHTML=""; setMsg(msgId,"Could not load questionnaires: "+r.error,"err"); return; }
+  const list = r.data || [];
+  if (!list.length) { box.innerHTML='<p class="hint">None registered for '+timepoint+'.</p>'; return; }
+  box.innerHTML="";
+  list.forEach(q => {
+    const row=document.createElement("div"); row.className="qrow";
+    row.innerHTML = '<span class="qname">'+(q.title||q.questionnaire_key)+' <span class="hint">('+q.questionnaire_key+')</span></span>'
+      + '<span class="pill" id="qstat-'+q.questionnaire_key+'">unknown</span>'
+      + '<button class="secondary" data-key="'+q.questionnaire_key+'">Push</button>';
+    box.appendChild(row);
+    row.querySelector("button").onclick = () => pushQuestionnaire(q.questionnaire_key, msgId);
+  });
+  refreshQStatus(list);
+}
+async function pushQuestionnaire(key, msgId) {
+  if (!S.sid) { setMsg(msgId,"No session.","err"); return; }
+  const r = await api("POST","/tablet/push",{form_type:"questionnaire",session_id:S.sid,questionnaire_key:key});
+  if (!r.ok) { setMsg(msgId,"Push failed ("+key+"): "+r.error,"err"); return; }
+  setMsg(msgId,"Pushed "+key+" to tablet.","ok");
+  setQStatus(key);
+}
+async function setQStatus(key) {
+  const r = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/questionnaires/"+key+"/responses");
+  const el=$("qstat-"+key); if(!el) return;
+  if (!r.ok) { el.textContent="unknown"; el.className="pill"; return; }
+  const done = !!(r.data && r.data.finalized);
+  el.textContent = done ? "submitted" : "pending";
+  el.className = "pill " + (done ? "ok" : "warn");
+}
+function refreshQStatus(list){ (list||[]).forEach(q => setQStatus(q.questionnaire_key)); }
+
+// --- Stage 3: live polling --------------------------------------------------
+function stopPoll(){ if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; } }
+function startPoll(){ stopPoll(); refreshLive(); S.pollTimer=setInterval(refreshLive, 2000); }
+
+async function refreshLive() {
+  if (!S.sid) return;
+  // session state (keep header honest)
+  const sr = await api("GET","/sessions/"+encodeURIComponent(S.sid));
+  if (sr.ok) { S.state=sr.data.state; S.running=(S.state==="running"); renderHeader(); }
+
+  // gates -> progress + open gate
+  const gr = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/sync/gates");
+  if (gr.ok) {
+    $("live-stale").classList.add("hidden");
+    renderGates(gr.data || []);
+  } else {
+    const st=$("live-stale"); st.classList.remove("hidden"); st.textContent="gate data unavailable ("+gr.error+") — retrying…";
+  }
+  // status
+  refreshStatus();
+  // notes
+  refreshNotes();
+}
+
+let CURRENT_OPEN_GATE = null;
+function phaseForGate(g){ if(g.scope==="stage") return g.stage_key; return g.checkpoint==="post_kid_response"?"rehearsal":"feedback"; }
+function renderGates(gates) {
+  const opened=gates.length, closed=gates.filter(g=>g.status==="closed").length,
+        overridden=gates.filter(g=>g.closed_by==="override").length;
+  $("live-gatecounts").textContent = opened+" / "+closed+" / "+overridden;
+
+  // current phase/loop from the most recent gate (max gate_id = last element, since ordered)
+  const latest = gates.length ? gates[gates.length-1] : null;
+  $("live-phase").textContent = latest ? phaseForGate(latest) : "(awaiting first gate)";
+  $("live-loop").textContent  = latest ? (latest.scope==="loop" ? latest.loop_index : "—") : "—";
+
+  // open gate (latest open one)
+  const open = gates.filter(g=>g.status==="open");
+  const g = open.length ? open[open.length-1] : null;
+  CURRENT_OPEN_GATE = g;
+  const box=$("live-gate"), btn=$("btn-override");
+  if (!g) {
+    box.innerHTML='<div class="gate-none">No open gate — nothing is waiting.</div>';
+    btn.classList.add("hidden");
+  } else {
+    const waited = Date.now() - Date.parse(g.opened_at);
+    const where = g.scope==="stage" ? ("stage · "+g.stage_key) : ("loop "+g.loop_index);
+    box.innerHTML = '<div class="gate-open"><div>'+where+' · <b>'+g.checkpoint+'</b></div>'
+      + '<div style="margin-top:.3rem;">waiting <span class="waiting">'+fmtDur(waited)+'</span></div></div>';
+    btn.classList.remove("hidden");
+  }
+}
+
+$("btn-override").onclick = async () => {
+  const g = CURRENT_OPEN_GATE;
+  if (!g) { setMsg("override-msg","No open gate to override.","err"); return; }
+  const where = g.scope==="stage" ? ("stage "+g.stage_key) : ("loop "+g.loop_index);
+  if (!confirm("Override the open gate ("+where+" · "+g.checkpoint+")?\nThis releases the robot WITHOUT a self-report and is recorded as a skip-by-override.")) return;
+  const reason = prompt("Reason (optional, saved to the record):","") || null;
+  const btn=$("btn-override"); btn.disabled=true;
+  const body = { scope:g.scope, checkpoint:g.checkpoint, operator:"console", reason };
+  if (g.scope==="stage") body.stage=g.stage_key; else body.loop_index=g.loop_index;
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/sync/override",body);
+  btn.disabled=false;
+  if (!r.ok) { setMsg("override-msg","Override failed: "+r.error,"err"); return; }
+  setMsg("override-msg","Gate "+r.data.gate_key+" overridden — robot will proceed.","ok");
+  refreshLive();
+};
+
+async function refreshStatus() {
+  // recording
+  const rr = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/recordings");
+  const rp=$("stat-rec");
+  if (!rr.ok) { rp.textContent="unavailable"; rp.className="pill warn"; }
+  else if (!rr.data.length) { rp.textContent="none"; rp.className="pill"; }
+  else {
+    const last=rr.data[rr.data.length-1];
+    const good = last.status==="recording" || last.status==="completed";
+    rp.textContent=last.status; rp.className="pill "+(last.status==="recording"?"ok":(good?"":"bad"));
+    if (last.status==="recording") rp.className="pill ok";
+    else if (last.status==="failed"||last.status==="interrupted") rp.className="pill bad";
+    else rp.className="pill";
+  }
+  // perception
+  const pr = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/perception-events/summary");
+  const pp=$("stat-perc");
+  if (!pr.ok) { pp.textContent="unavailable"; pp.className="pill warn"; return; }
+  const tasks=pr.data.tasks||{}; const vals=Object.values(tasks);
+  const total=vals.reduce((a,t)=>a+(t.count||0),0);
+  const anyOk=vals.some(t=>t.latest_connection_status==="ok");
+  const anyDown=vals.some(t=>t.latest_connection_status==="down");
+  if (total===0){ pp.textContent="no data yet"; pp.className="pill"; }
+  else if (anyDown && !anyOk){ pp.textContent="down"; pp.className="pill bad"; }
+  else if (anyDown){ pp.textContent="degraded"; pp.className="pill warn"; }
+  else if (anyOk){ pp.textContent="healthy"; pp.className="pill ok"; }
+  else { pp.textContent="idle"; pp.className="pill"; }
+}
+
+async function refreshNotes() {
+  const r = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/notes");
+  const box=$("live-notes"); if(!r.ok){ box.textContent="notes unavailable"; return; }
+  const notes=r.data||[]; if(!notes.length){ box.textContent="No notes yet."; return; }
+  box.innerHTML = notes.slice(-12).reverse().map(n =>
+    '<div class="n">'+(n.timestamp_utc||"").replace("T"," ").slice(0,19)+' — '+escapeHtml(n.text)+'</div>').join("");
+}
+function escapeHtml(s){ return (s||"").replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// --- notes modal ------------------------------------------------------------
+$("btn-note").onclick = () => { if(!S.sid) return; setMsg("note-msg",""); $("note-text").value=""; $("note-modal").classList.add("show"); };
+$("note-cancel").onclick = () => $("note-modal").classList.remove("show");
+$("note-save").onclick = async () => {
+  const text=$("note-text").value.trim(); if(!text){ setMsg("note-msg","Empty note.","err"); return; }
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/notes",{text});
+  if(!r.ok){ setMsg("note-msg","Save failed: "+r.error,"err"); return; }
+  $("note-modal").classList.remove("show");
+  if (S.stage==="live") refreshNotes();
+};
+
+// --- Stage 4: qualitative note ---------------------------------------------
+$("btn-qual").onclick = async () => {
+  const text=$("qual-note").value.trim(); if(!text){ setMsg("qual-msg","Empty.","err"); return; }
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/notes",{text:"[qualitative] "+text});
+  if(!r.ok){ setMsg("qual-msg","Save failed: "+r.error,"err"); return; }
+  $("qual-note").value=""; setMsg("qual-msg","Saved to session record.","ok");
+};
+
+// --- Stage 5: closeout ------------------------------------------------------
+async function refreshSummary() {
+  const box=$("summary"); if(!S.sid){ box.textContent="No session."; return; }
+  box.textContent="Loading…";
+  const [sr, tr, gr, rr] = await Promise.all([
+    api("GET","/sessions/"+encodeURIComponent(S.sid)+"/self-reports"),
+    api("GET","/sessions/"+encodeURIComponent(S.sid)+"/trials"),
+    api("GET","/sessions/"+encodeURIComponent(S.sid)+"/sync/gates"),
+    api("GET","/sessions/"+encodeURIComponent(S.sid)+"/recordings"),
+  ]);
+  const selfN = sr.ok ? sr.data.length : "?";
+  const trialN = tr.ok ? tr.data.length : "?";
+  const gates = gr.ok ? gr.data : [];
+  const gClosed = gr.ok ? gates.filter(g=>g.status==="closed").length : "?";
+  const gOver = gr.ok ? gates.filter(g=>g.closed_by==="override").length : "?";
+  const recStatus = rr.ok ? (rr.data.length ? rr.data[rr.data.length-1].status : "none") : "?";
+  box.innerHTML =
+    kv("Self-reports", selfN) + kv("Trials", trialN) +
+    kv("Gates fired", gr.ok?gates.length:"?") + kv("Gates closed", gClosed) + kv("Gates overridden", gOver) +
+    kv("Recording status", recStatus);
+}
+function kv(k,v){ return '<div class="kv"><span>'+k+'</span><span>'+v+'</span></div>'; }
+$("btn-refresh-summary").onclick = refreshSummary;
+
+$("btn-export").onclick = async () => {
+  const btn=$("btn-export"); btn.disabled=true; setMsg("export-msg","Generating export…");
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/export");
+  btn.disabled=false;
+  if(!r.ok){ setMsg("export-msg","Export failed: "+r.error,"err"); return; }
+  setMsg("export-msg","Export complete: "+(r.data.files?r.data.files.length:"?")+" files → "+r.data.export_dir,"ok");
+};
+
+$("btn-reset").onclick = () => {
+  if(!confirm("Clear the console for the next participant? (The session and its data stay saved on the platform.)")) return;
+  stopPoll();
+  S.pid=S.sid=S.state=null; S.running=false; S.stage="setup";
+  $("in-pid").value=$("in-sid").value=""; setMsg("setup-msg","");
+  initChecklists();
+  goStage("setup"); renderHeader(); renderStepper();
+};
+
+// --- init -------------------------------------------------------------------
+function initChecklists() {
+  checklist("pre-check", ["Study area set up","Robot program loaded","Perception platform running","Connections established"]);
+  checklist("onboard-check", ["Consent completed","Media-recording consent captured","Briefing read to participant"]);
+  checklist("debrief-check", ["Participant debriefed","Questions answered","Compensation handled"]);
+  checklist("reset-check", ["Recording offloaded / confirmed saved","Export generated","Tablet reset to idle","Area reset"]);
+}
+initChecklists();
+goStage("setup");
+renderHeader();
+renderStepper();
+</script>
+</body>
+</html>

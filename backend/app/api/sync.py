@@ -10,6 +10,7 @@ before any operator UI exists (override included).
   POST .../sync/stage-complete         open a stage baseline gate
   POST .../sync/kid-response-complete  open a loop post_kid_response gate
   POST .../sync/feedback-delivered     open a loop post_feedback gate
+  GET  .../sync/gates               list this session's gates (open + closed)
   GET  .../sync/go-ahead            poll a gate (proceed true/false)
   POST .../sync/override            operator releases a gate (+ marker)
   POST .../sync/complete            session_complete marker
@@ -18,9 +19,11 @@ before any operator UI exists (override included).
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.sync import SyncGate
 from app.schemas.sync import (
     FeedbackDeliveredIn,
     GateRead,
@@ -43,6 +46,16 @@ from app.services.sync_gate import (
 )
 
 router = APIRouter(prefix="/sessions/{session_id}/sync", tags=["sync"])
+
+
+@router.get("/gates", response_model=list[GateRead])
+def list_gates(session_id: str, db: Session = Depends(get_db)):
+    """All gates for the session, ordered by gate_id (creation order). Read-only;
+    the operator console derives current phase/loop and the open gate from this."""
+    get_session_or_404(db, session_id)
+    return db.scalars(
+        select(SyncGate).where(SyncGate.session_id == session_id).order_by(SyncGate.gate_id)
+    ).all()
 
 
 @router.post("/register", response_model=SessionRegisterResult)
