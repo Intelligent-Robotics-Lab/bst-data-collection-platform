@@ -38,7 +38,7 @@ def test_push_questionnaire_updates_assignment_and_timeline(client, questionnair
 
 def test_push_self_report_carries_context(client):
     sid = _session(client)
-    ctx = {"loop_index": 1, "phase": "dtt", "timepoint": "post", "function_class": "baseline"}
+    ctx = {"loop_index": 1, "phase": "rehearsal", "timepoint": "post", "function_class": "baseline"}
     r = client.post(
         "/tablet/push",
         json={"form_type": "self_report", "session_id": sid, "self_report_context": ctx},

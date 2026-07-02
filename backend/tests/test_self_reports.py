@@ -18,7 +18,7 @@ def _running(client, pid="P210", sid="P210_S1"):
 def _ctx(**over):
     payload = {
         "loop_index": 2,
-        "phase": "dtt",
+        "phase": "rehearsal",
         "timepoint": "pre",
         "function_class": "PR",
         "before_after_robot_action": "before",
@@ -40,7 +40,7 @@ def test_self_report_writes_row_and_timeline(client):
     assert body["arousal"] == -2.0
     # unset sliders default to the true-zero center
     assert body["confidence"] == 0.0
-    assert body["loop_index"] == 2 and body["phase"] == "dtt"
+    assert body["loop_index"] == 2 and body["phase"] == "rehearsal"
 
     tl = client.get(f"/sessions/{sid}/timeline", params={"format": "json"}).json()
     assert any(

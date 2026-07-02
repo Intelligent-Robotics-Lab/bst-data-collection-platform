@@ -10,7 +10,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-Phase = Literal["dtt", "feedback"]
+Phase = Literal["tutorial", "instruction", "modeling", "rehearsal", "feedback"]
 Timepoint = Literal["pre", "post"]
 FunctionClass = Literal["baseline", "PR", "NR", "AR", "not_applicable"]
 IsProblem = Literal["0", "1", "not_applicable"]
@@ -24,8 +24,10 @@ class SelfReportContext(BaseModel):
     unique per (session_id + this full context), so two different contexts in the
     same session never share or overwrite each other's autosaved draft."""
 
-    # loop_index/phase/timepoint/function_class are NOT NULL on the raw row
-    loop_index: int = Field(..., ge=1, le=6)
+    # loop_index is optional: instructional-stage baseline reports (phase
+    # tutorial|instruction|modeling) have no loop; rehearsal/feedback reports
+    # carry 1..6.
+    loop_index: Optional[int] = Field(default=None, ge=1, le=6)
     phase: Phase
     timepoint: Timepoint
     function_class: FunctionClass
@@ -72,7 +74,7 @@ class SelfReportRead(BaseModel):
     session_id: str
     participant_id: str
     trial_id: Optional[int] = None
-    loop_index: int
+    loop_index: Optional[int] = None
     sequence_position: Optional[int] = None
     phase: str
     timepoint: str

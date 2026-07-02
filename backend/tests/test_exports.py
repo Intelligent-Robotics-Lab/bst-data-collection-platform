@@ -76,7 +76,7 @@ def _build_session(client, factory, protocol_id, group=1, sid="EXP_S1", pid="EXP
                 session_id=sid,
                 participant_id=pid,
                 loop_index=2,
-                phase="dtt",
+                phase="rehearsal",
                 timepoint="pre",
                 function_class="NR",
                 is_problem="1",
