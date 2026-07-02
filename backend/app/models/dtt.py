@@ -77,6 +77,10 @@ class DttLoop(Base):
     loop_index: Mapped[int] = mapped_column(Integer, nullable=False)
     sequence_position: Mapped[int | None] = mapped_column(Integer, nullable=True)
     function_class: Mapped[str] = mapped_column(String, nullable=False)
+    # Discriminative stimulus bound to this loop position. Positional: sd_{loop_index}.
+    # The SD cell is fixed by position; only function_class rotates by order group
+    # (per bst-study logic/latin_square.py: SD cells 1/3/5 fixed, 2/4/6 rotate).
+    sd_id: Mapped[str | None] = mapped_column(String, nullable=True)
     is_problem: Mapped[str | None] = mapped_column(String, nullable=True)
     # The loop's mapping to the session's between-subject factors (denormalized
     # onto the loop for the Day-6 analysis frame).

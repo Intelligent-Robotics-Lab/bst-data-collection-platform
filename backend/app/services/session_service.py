@@ -21,6 +21,7 @@ from app.models.participant import Participant
 from app.models.session import StudySession
 from app.services import perception, recording
 from app.services.backup import backup_database
+from app.services.dtt_loops import generate_dtt_loops
 from app.services.timeline import record_timeline_event
 
 logger = logging.getLogger("bst.session")
@@ -127,6 +128,14 @@ def apply_transition(db: Session, session: StudySession, action: str) -> StudySe
         ref_id=session.session_id,
         now=now,
     )
+
+    # Materialize the six dtt_loops rows once, atomically with the start
+    # transition (created -> running). Generation is idempotent and never
+    # overwrites existing rows, so the once-only state machine plus this guard
+    # together preserve raw-data immutability.
+    if action == "start":
+        generate_dtt_loops(db, session)
+
     db.commit()
     db.refresh(session)
 
