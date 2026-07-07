@@ -1,4 +1,4 @@
-"""Model registry. Importing this package registers all 24 tables on
+"""Model registry. Importing this package registers all 25 tables on
 ``Base.metadata`` for ``create_all``.
 """
 
@@ -33,6 +33,7 @@ from app.models.system import (
 )
 from app.models.sync import SyncGate
 from app.models.launch import SessionLaunch
+from app.models.fidelity import FidelityScore
 
 __all__ = [
     "Base",
@@ -68,4 +69,6 @@ __all__ = [
     "SyncGate",
     # launch
     "SessionLaunch",
+    # fidelity (operator console v3)
+    "FidelityScore",
 ]

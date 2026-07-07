@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api import (
     exports,
+    fidelity,
     health,
     launch,
     notes,
@@ -90,6 +91,7 @@ app.include_router(exports.router)
 app.include_router(sync.router)
 app.include_router(launch.router)
 app.include_router(tablet.router)
+app.include_router(fidelity.router)
 
 # Minimal participant-intake UI (interim; superseded by the React+Vite app in a
 # later phase). Served at /ui/.

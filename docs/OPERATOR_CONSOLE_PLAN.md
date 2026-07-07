@@ -132,13 +132,7 @@ else is additive.
   the platform session (no manual re-typing).
 
 ## 6. v3 — Fidelity scoring panel (human)
-- The ABA fidelity table as a fast structured form the operator fills per loop
-  (per-SD component + timing scores; error-source options).
-- Stored per loop, linked to session + loop_index, exported.
-- **Independence requirement:** operator scores **blind** to any automated score, so the
-  human rating stays a valid ground truth for later validation.
-- Acceptance: operator can score each loop; scores save and export; scoring is
-  independent of any machine score.
+- The exact v3 scoring fields are defined in `docs/FIDELITY_SCORING_V3_SPEC.md`.
 
 ## 7. v4 — Perception tab
 - Integrated, professional live view of perception signals (emotion/valence-arousal,

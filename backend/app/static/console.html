@@ -77,6 +77,33 @@
     .notelist .n { padding:.3rem 0; border-top:1px solid var(--line); }
     .notelist .n:first-child{border-top:none;}
     .stale { color:var(--warn); font-size:.82rem; }
+    /* Fidelity scoring (v3) */
+    .fidloops { display:flex; gap:.4rem; flex-wrap:wrap; margin:.4rem 0 .9rem; }
+    .fidloop { border:1px solid var(--line); border-radius:9px; padding:.35rem .65rem; cursor:pointer;
+      font-size:.9rem; background:#fff; display:flex; gap:.4rem; align-items:center; }
+    .fidloop.active { border-color:var(--accent); background:#e8f7ef; font-weight:700; }
+    .fidloop .dot { width:.6rem; height:.6rem; border-radius:50%; background:#cdd5db; flex:none; }
+    .fidloop.st-draft .dot { background:var(--warn); }
+    .fidloop.st-complete .dot { background:var(--ok); }
+    .fidrow { display:flex; align-items:center; gap:.6rem; padding:.4rem 0; border-top:1px solid var(--line); }
+    .fidrow:first-child { border-top:none; }
+    .fidrow .lbl { flex:1 1 auto; font-size:.92rem; }
+    .scorebtns { display:flex; gap:.25rem; flex:none; }
+    .scoreb { border:1px solid #cdd5db; background:#fff; border-radius:7px; padding:.25rem .55rem; cursor:pointer;
+      font-size:.85rem; min-width:2.3rem; line-height:1.1; }
+    .scoreb.sel-correct { background:#e8f7ef; border-color:var(--ok); color:var(--accent-dark); font-weight:700; }
+    .scoreb.sel-incorrect { background:#fdecea; border-color:var(--bad); color:var(--bad); font-weight:700; }
+    .scoreb.sel-na { background:#eef1f4; border-color:#9aa6b0; color:#556; font-weight:700; }
+    .esrc { display:flex; flex-wrap:wrap; gap:.4rem .9rem; margin:.4rem 0; }
+    .esrc label { font-size:.85rem; cursor:pointer; }
+    .fidtable { width:100%; border-collapse:collapse; font-size:.8rem; }
+    .fidtable th, .fidtable td { border:1px solid var(--line); padding:.25rem .35rem; text-align:center; }
+    .fidtable th.lbl, .fidtable td.lbl { text-align:left; white-space:nowrap; }
+    .fidtable td.v-correct { color:var(--accent-dark); font-weight:700; }
+    .fidtable td.v-incorrect { color:var(--bad); font-weight:700; }
+    .fidtable td.v-not_applicable { color:#667; }
+    .fidtable td.v-unscored { color:#aab; }
+    .fidwrap { overflow-x:auto; }
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:20; }
     .modal-bg.show { display:flex; }
@@ -197,6 +224,19 @@
           <div class="notelist" id="live-notes">—</div>
         </div>
       </div>
+
+      <!-- v3: human fidelity scoring -->
+      <div class="card" id="fidelity-card">
+        <h2>Human fidelity scoring <span class="pill" id="fidelity-overall" style="margin-left:.4rem;">—</span></h2>
+        <p class="hint">Score each loop/SD against the ABA fidelity table. Human scoring only, independent of any machine score. Autosaves; does not gate the robot.</p>
+        <div class="fidloops" id="fidelity-loops"></div>
+        <div id="fidelity-form"></div>
+        <div class="msg" id="fidelity-msg"></div>
+        <details style="margin-top:.6rem;">
+          <summary style="cursor:pointer; color:var(--muted);">Review all loops</summary>
+          <div class="fidwrap" id="fidelity-table" style="margin-top:.6rem;">—</div>
+        </details>
+      </div>
     </section>
 
     <!-- STAGE 4: POST -->
@@ -270,6 +310,7 @@ const STAGE_LABEL = { setup:"Setup", onboarding:"Onboarding", live:"Live", post:
 const S = {
   pid: null, sid: null, running: false, state: null,
   stage: "setup", pollTimer: null, qPollTimer: null,
+  fid: null,  // fidelity scoring state: { loop, scores:{loop_index:row}, saveTimer }
 };
 
 // --- tiny helpers -----------------------------------------------------------
@@ -318,7 +359,7 @@ function goStage(stg) {
   STAGES.forEach(x => $("stage-"+x).classList.toggle("hidden", x!==stg));
   renderHeader(); renderStepper();
   stopPoll(); stopQPoll();
-  if (stg==="live") startPoll();
+  if (stg==="live") { startPoll(); loadFidelity(); }
   if (stg==="onboarding") loadQuestionnaires("pre","pre-q","preq-msg");
   if (stg==="post") loadQuestionnaires("post","post-q","postq-msg");
   if (stg==="closeout") refreshSummary();
@@ -591,6 +632,171 @@ async function refreshNotes() {
     '<div class="n">'+(n.timestamp_utc||"").replace("T"," ").slice(0,19)+' — '+escapeHtml(n.text)+'</div>').join("");
 }
 function escapeHtml(s){ return (s||"").replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// --- Stage 3: human fidelity scoring (v3) ----------------------------------
+// One score row per (session, loop_index) for SD1..SD6. Human scoring only;
+// nothing here shows or depends on any automated score, and it never gates the
+// robot. Ratings autosave (debounced PUT); "complete" flips per-loop status.
+const FIDELITY_FIELDS = [
+  ["delivered_target","Delivered this target?"],
+  ["sd_delivered_as_written","SD delivered as written"],
+  ["sd_timing","SD timing"],
+  ["primary_rplus_delivery","Primary R+ delivery"],
+  ["primary_rplus_timing","Primary R+ timing"],
+  ["ec_prompting_delivery","EC prompting delivery"],
+  ["ec_prompting_timing","EC prompting timing"],
+  ["ec_hp_delivery","EC HP delivery"],
+  ["ec_hp_timing","EC HP timing"],
+  ["ec_rplus_delivery","EC R+ delivery"],
+  ["ec_rplus_timing","EC R+ timing"],
+  ["initial_sd_delivery","Initial SD delivery"],
+  ["initial_sd_timing","Initial SD timing"],
+  ["final_rplus_delivery","Final R+ delivery"],
+  ["final_rplus_timing","Final R+ timing"],
+];
+const FIDELITY_ERROR_SOURCES = ["interaction_flow","ordering","timing","latency","wrong_item","sd_delivery","prompting","reinforcement","error_correction","other"];
+const SCORE_OPTS = [["correct","✓"],["incorrect","✗"],["not_applicable","N/A"]];
+
+function blankFidRow(loop){
+  const r = { loop_index:loop, status:"unscored", error_sources:[], notes:"" };
+  FIDELITY_FIELDS.forEach(([k])=> r[k]="unscored");
+  return r;
+}
+function fidRow(loop){ return (S.fid && S.fid.scores[loop]) || blankFidRow(loop); }
+function statusOf(loop){ const r = S.fid && S.fid.scores[loop]; return r ? r.status : "unscored"; }
+
+async function loadFidelity(){
+  if(!S.sid) return;
+  S.fid = S.fid || { loop:1, scores:{}, saveTimer:null };
+  const r = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/fidelity-scores");
+  const scores = {};
+  if(r.ok){ (r.data||[]).forEach(row => scores[row.loop_index]=row); }
+  S.fid.scores = scores;
+  if(!S.fid.loop) S.fid.loop = 1;
+  renderFidLoops(); renderFidForm(); renderFidTable(); renderFidOverall();
+}
+
+function renderFidOverall(){
+  let complete=0; for(let l=1;l<=6;l++){ if(statusOf(l)==="complete") complete++; }
+  const el=$("fidelity-overall"); el.textContent = complete+"/6 complete";
+  el.className = "pill" + (complete===6?" ok":(complete>0?" warn":""));
+}
+
+function renderFidLoops(){
+  const box=$("fidelity-loops"); box.innerHTML="";
+  for(let l=1;l<=6;l++){
+    const st=statusOf(l);
+    const d=document.createElement("div");
+    d.className="fidloop"+(S.fid.loop===l?" active":"")+(st==="draft"?" st-draft":(st==="complete"?" st-complete":""));
+    d.innerHTML='<span class="dot"></span>SD'+l;
+    d.onclick=()=>{ S.fid.loop=l; renderFidLoops(); renderFidForm(); };
+    box.appendChild(d);
+  }
+}
+
+function renderFidForm(){
+  const loop=S.fid.loop, row=fidRow(loop), box=$("fidelity-form");
+  const meta = row.function_class ? (' · '+row.function_class+(row.sd_id?(' · '+row.sd_id):'')) : '';
+  let html='<div style="display:flex;justify-content:space-between;align-items:center;margin:.2rem 0 .5rem;">'
+    +'<b>SD'+loop+meta+'</b>'
+    +'<span class="pill '+(row.status==="complete"?"ok":(row.status==="draft"?"warn":""))+'">'+row.status+'</span></div>';
+  FIDELITY_FIELDS.forEach(([key,label])=>{
+    const val=row[key]||"unscored";
+    html+='<div class="fidrow"><span class="lbl">'+label+'</span><span class="scorebtns">';
+    SCORE_OPTS.forEach(([v,glyph])=>{
+      const sel = val===v ? (" sel-"+(v==="not_applicable"?"na":v)) : "";
+      html+='<button class="scoreb'+sel+'" data-k="'+key+'" data-v="'+v+'">'+glyph+'</button>';
+    });
+    html+='</span></div>';
+  });
+  html+='<div style="margin-top:.7rem;"><span style="font-size:.85rem;color:var(--muted);">Error source(s)</span><div class="esrc">';
+  FIDELITY_ERROR_SOURCES.forEach(es=>{
+    const on=(row.error_sources||[]).includes(es);
+    html+='<label><input type="checkbox" data-es="'+es+'"'+(on?" checked":"")+'> '+es+'</label>';
+  });
+  html+='</div></div>';
+  html+='<label class="fld"><span>Notes</span><textarea id="fid-notes" rows="2">'+escapeHtml(row.notes||"")+'</textarea></label>';
+  html+='<div style="display:flex;gap:.6rem;margin-top:.5rem;"><button class="primary" id="fid-complete">Mark SD'+loop+' complete</button></div>';
+  box.innerHTML=html;
+
+  box.querySelectorAll(".scoreb").forEach(b=>{
+    b.onclick=()=>{
+      const k=b.getAttribute("data-k"), v=b.getAttribute("data-v");
+      const next = (fidRow(loop)[k]===v) ? "unscored" : v;  // click selected value again = clear
+      updateFidField(loop, {[k]:next});
+    };
+  });
+  box.querySelectorAll("input[data-es]").forEach(cb=>{
+    cb.onclick=()=>{
+      const chosen=[...box.querySelectorAll("input[data-es]:checked")].map(x=>x.getAttribute("data-es"));
+      updateFidField(loop, {error_sources:chosen});
+    };
+  });
+  const notes=$("fid-notes");
+  if(notes) notes.oninput=()=>{ updateFidLocal(loop,{notes:notes.value}); scheduleFidSave(loop); };
+  const cbtn=$("fid-complete");
+  if(cbtn) cbtn.onclick=()=>completeFid(loop);
+}
+
+// Merge into the local row (no re-render) — used while typing notes.
+function updateFidLocal(loop, patch){
+  const row = S.fid.scores[loop] || blankFidRow(loop);
+  Object.assign(row, patch);
+  S.fid.scores[loop]=row;
+}
+// Merge + re-render the form + autosave — used for button/checkbox toggles.
+function updateFidField(loop, patch){ updateFidLocal(loop, patch); renderFidForm(); scheduleFidSave(loop); }
+
+function fidPayload(loop){
+  const row=fidRow(loop);
+  const p={ error_sources: row.error_sources||[], notes: (row.notes||"")||null };
+  FIDELITY_FIELDS.forEach(([k])=> p[k]=row[k]||"unscored");
+  return p;  // status omitted: autosave never demotes a completed loop
+}
+
+function scheduleFidSave(loop){
+  if(S.fid.saveTimer) clearTimeout(S.fid.saveTimer);
+  S.fid.saveTimer=setTimeout(()=>saveFid(loop), 500);
+}
+
+async function saveFid(loop){
+  if(!S.sid) return;
+  const r=await api("PUT","/sessions/"+encodeURIComponent(S.sid)+"/fidelity-scores/"+loop, fidPayload(loop));
+  if(!r.ok){ setMsg("fidelity-msg","Save failed (SD"+loop+"): "+r.error,"err"); return; }
+  S.fid.scores[loop]=r.data;
+  setMsg("fidelity-msg","SD"+loop+" saved.","ok");
+  renderFidLoops(); renderFidOverall(); renderFidTable();
+  if(S.fid.loop===loop){ const pill=$("fidelity-form").querySelector(".pill"); if(pill){ pill.textContent=r.data.status; pill.className="pill "+(r.data.status==="complete"?"ok":"warn"); } }
+}
+
+async function completeFid(loop){
+  if(!S.sid) return;
+  if(S.fid.saveTimer) clearTimeout(S.fid.saveTimer);
+  const s=await api("PUT","/sessions/"+encodeURIComponent(S.sid)+"/fidelity-scores/"+loop, fidPayload(loop));
+  if(!s.ok){ setMsg("fidelity-msg","Save failed (SD"+loop+"): "+s.error,"err"); return; }
+  const c=await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/fidelity-scores/"+loop+"/complete");
+  if(!c.ok){ setMsg("fidelity-msg","Complete failed (SD"+loop+"): "+c.error,"err"); return; }
+  S.fid.scores[loop]=c.data;
+  setMsg("fidelity-msg","SD"+loop+" marked complete.","ok");
+  renderFidLoops(); renderFidForm(); renderFidOverall(); renderFidTable();
+}
+
+function renderFidTable(){
+  const box=$("fidelity-table");
+  const glyph={correct:"✓",incorrect:"✗",not_applicable:"N/A",unscored:"·"};
+  let h='<table class="fidtable"><tr><th class="lbl">Field</th>';
+  for(let l=1;l<=6;l++) h+='<th>SD'+l+'</th>';
+  h+='</tr>';
+  FIDELITY_FIELDS.forEach(([key,label])=>{
+    h+='<tr><td class="lbl">'+label+'</td>';
+    for(let l=1;l<=6;l++){ const v=fidRow(l)[key]||"unscored"; h+='<td class="v-'+v+'">'+glyph[v]+'</td>'; }
+    h+='</tr>';
+  });
+  h+='<tr><td class="lbl">Status</td>';
+  for(let l=1;l<=6;l++) h+='<td>'+statusOf(l)+'</td>';
+  h+='</tr></table>';
+  box.innerHTML=h;
+}
 
 // --- notes modal ------------------------------------------------------------
 $("btn-note").onclick = () => { if(!S.sid) return; setMsg("note-msg",""); $("note-text").value=""; $("note-modal").classList.add("show"); };
