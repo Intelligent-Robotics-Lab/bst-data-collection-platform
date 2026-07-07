@@ -548,6 +548,14 @@ $("btn-override").onclick = async () => {
 };
 
 async function refreshStatus() {
+  // Guard against overlap: refreshLive fires every 2s and calls this without
+  // awaiting it. If any status call (e.g. the perception summary) ever runs
+  // slower than the tick, un-guarded calls would stack up, each holding a DB
+  // connection, exhaust the pool, and delay the tablet form push. Skip a tick
+  // rather than pile on; the next tick picks up fresh state.
+  if (S._statusInFlight) return;
+  S._statusInFlight = true;
+  try {
   // recording
   const rr = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/recordings");
   const rp=$("stat-rec");
@@ -574,6 +582,9 @@ async function refreshStatus() {
   else if (anyDown){ pp.textContent="degraded"; pp.className="pill warn"; }
   else if (anyOk){ pp.textContent="healthy"; pp.className="pill ok"; }
   else { pp.textContent="idle"; pp.className="pill"; }
+  } finally {
+    S._statusInFlight = false;
+  }
 }
 
 async function refreshNotes() {

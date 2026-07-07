@@ -11,6 +11,7 @@ from sqlalchemy import (
     CheckConstraint,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -238,6 +239,32 @@ class PerceptionEvent(Base):
         CheckConstraint(
             "connection_status IN ('ok','degraded','down')",
             name="ck_perception_connection_status",
+        ),
+        # This table is the highest-volume in the system (~9 rows/sec during a
+        # live session, millions of rows across a study). Every per-session read
+        # -- the console's live health poll (/perception-events/summary), the
+        # event list, and the export -- filters by session_id (often + task).
+        # Without these indexes those are full-table scans that grow with every
+        # loop, starving the connection pool and delaying the tablet form push
+        # (measured: the summary poll went from ~8.2s to ~0.08s on a 2M-row
+        # session). Two focused composites, each covering a distinct query shape:
+        #   - (session_id, task, event_id): the summary's per-task count and its
+        #     "latest by event_id" lookup (event_id must sit right after the
+        #     equality columns so the ORDER BY is a seek, not a sort), plus the
+        #     session-scoped list/export ordered by event_id.
+        #   - (session_id, task, connection_status): the summary's per-task
+        #     outage (down) count, served covering with no row fetches.
+        Index(
+            "ix_perception_events_session_task_event",
+            "session_id",
+            "task",
+            "event_id",
+        ),
+        Index(
+            "ix_perception_events_session_task_conn",
+            "session_id",
+            "task",
+            "connection_status",
         ),
     )
 
