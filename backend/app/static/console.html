@@ -73,7 +73,6 @@
     .kv:first-child{border-top:none;}
     .gate-open { border:2px solid var(--warn); background:#fff8ef; border-radius:10px; padding:.8rem 1rem; }
     .gate-none { color:var(--muted); }
-    .waiting { font-variant-numeric:tabular-nums; font-weight:700; }
     .notelist { max-height:180px; overflow:auto; font-size:.88rem; }
     .notelist .n { padding:.3rem 0; border-top:1px solid var(--line); }
     .notelist .n:first-child{border-top:none;}
@@ -276,7 +275,6 @@ const S = {
 // --- tiny helpers -----------------------------------------------------------
 const $ = (id) => document.getElementById(id);
 function setMsg(id, text, kind) { const e=$(id); if(!e) return; e.textContent=text||""; e.className="msg"+(kind?(" "+kind):""); }
-function fmtDur(ms){ if(ms==null||ms<0)ms=0; const s=Math.floor(ms/1000); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
 
 async function api(method, path, body) {
   try {
@@ -523,10 +521,8 @@ function renderGates(gates) {
     box.innerHTML='<div class="gate-none">No open gate — nothing is waiting.</div>';
     btn.classList.add("hidden");
   } else {
-    const waited = Date.now() - Date.parse(g.opened_at);
     const where = g.scope==="stage" ? ("stage · "+g.stage_key) : ("loop "+g.loop_index);
-    box.innerHTML = '<div class="gate-open"><div>'+where+' · <b>'+g.checkpoint+'</b></div>'
-      + '<div style="margin-top:.3rem;">waiting <span class="waiting">'+fmtDur(waited)+'</span></div></div>';
+    box.innerHTML = '<div class="gate-open"><div>'+where+' · <b>'+g.checkpoint+'</b></div></div>';
     btn.classList.remove("hidden");
   }
 }
