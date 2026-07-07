@@ -1,4 +1,4 @@
-"""Model registry. Importing this package registers all 23 tables on
+"""Model registry. Importing this package registers all 24 tables on
 ``Base.metadata`` for ``create_all``.
 """
 
@@ -32,6 +32,7 @@ from app.models.system import (
     SystemHealthEvent,
 )
 from app.models.sync import SyncGate
+from app.models.launch import SessionLaunch
 
 __all__ = [
     "Base",
@@ -65,4 +66,6 @@ __all__ = [
     "Annotation",
     # sync
     "SyncGate",
+    # launch
+    "SessionLaunch",
 ]

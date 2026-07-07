@@ -142,6 +142,36 @@
 
     <!-- STAGE 3: LIVE -->
     <section id="stage-live" class="stage hidden">
+      <!-- v2: robot launch handoff (canonical config; no manual re-typing) -->
+      <div class="card">
+        <h2>Robot launch <span class="pill" id="launch-status" style="margin-left:.4rem;">—</span></h2>
+        <p class="hint">Hand the platform's canonical session config to the robots and start the interaction. No terminal re-typing.</p>
+        <div class="grid2">
+          <div>
+            <div class="kv"><span>Session ID</span><span id="launch-sid">—</span></div>
+            <div class="kv"><span>Participant</span><span id="launch-pid">—</span></div>
+            <div class="kv"><span>PB order group</span><span id="launch-group">—</span></div>
+            <div class="kv"><span>Support condition</span><span id="launch-support">—</span></div>
+          </div>
+          <div>
+            <div class="kv"><span>Config fetched by robot</span><span id="launch-fetched">—</span></div>
+            <div class="kv"><span>Start requested</span><span id="launch-startreq">—</span></div>
+            <div class="kv"><span>Started</span><span id="launch-started">—</span></div>
+            <div class="kv"><span>Error</span><span id="launch-error">—</span></div>
+          </div>
+        </div>
+        <div style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.8rem;">
+          <button class="secondary" id="btn-launch-prepare">Prepare robot launch</button>
+          <button class="primary" id="btn-launch-start" disabled>Start robot interaction</button>
+        </div>
+        <div class="msg" id="launch-msg"></div>
+        <details style="margin-top:.6rem;">
+          <summary style="cursor:pointer; color:var(--muted);">Fallback: manual config for the BST operator</summary>
+          <p class="hint" style="margin:.5rem 0 .3rem;">If robot-side polling isn't connected yet, the BST operator can use these exact values (they match the platform session — do not re-type by hand from memory):</p>
+          <textarea id="launch-fallback" rows="7" readonly style="font-family:ui-monospace,monospace; font-size:.82rem;"></textarea>
+          <button class="secondary" id="btn-launch-copy" style="margin-top:.4rem;">Copy</button>
+        </details>
+      </div>
       <div class="grid2">
         <div class="card">
           <h2>Progress</h2>
@@ -240,7 +270,7 @@ const STAGE_LABEL = { setup:"Setup", onboarding:"Onboarding", live:"Live", post:
 
 const S = {
   pid: null, sid: null, running: false, state: null,
-  stage: "setup", pollTimer: null,
+  stage: "setup", pollTimer: null, qPollTimer: null,
 };
 
 // --- tiny helpers -----------------------------------------------------------
@@ -289,7 +319,7 @@ function goStage(stg) {
   S.stage = stg;
   STAGES.forEach(x => $("stage-"+x).classList.toggle("hidden", x!==stg));
   renderHeader(); renderStepper();
-  stopPoll();
+  stopPoll(); stopQPoll();
   if (stg==="live") startPoll();
   if (stg==="onboarding") loadQuestionnaires("pre","pre-q","preq-msg");
   if (stg==="post") loadQuestionnaires("post","post-q","postq-msg");
@@ -339,6 +369,11 @@ $("btn-create").onclick = async () => {
 };
 
 // --- Questionnaire push + status -------------------------------------------
+// Exact registered version per key (from the questionnaire list). The submission
+// status is keyed by (session_id, questionnaire_key, version) with version-string
+// exactness, so we detect against the precise version, not a server-side fallback.
+const Q_VERSION = {};
+
 async function loadQuestionnaires(timepoint, containerId, msgId) {
   const box=$(containerId); box.innerHTML="Loading…";
   const r = await api("GET","/questionnaires?timepoint="+timepoint);
@@ -347,6 +382,7 @@ async function loadQuestionnaires(timepoint, containerId, msgId) {
   if (!list.length) { box.innerHTML='<p class="hint">None registered for '+timepoint+'.</p>'; return; }
   box.innerHTML="";
   list.forEach(q => {
+    Q_VERSION[q.questionnaire_key] = q.version;  // remember the exact version
     const row=document.createElement("div"); row.className="qrow";
     row.innerHTML = '<span class="qname">'+(q.title||q.questionnaire_key)+' <span class="hint">('+q.questionnaire_key+')</span></span>'
       + '<span class="pill" id="qstat-'+q.questionnaire_key+'">unknown</span>'
@@ -355,6 +391,7 @@ async function loadQuestionnaires(timepoint, containerId, msgId) {
     row.querySelector("button").onclick = () => pushQuestionnaire(q.questionnaire_key, msgId);
   });
   refreshQStatus(list);
+  startQPoll(list);  // keep polling so status flips to "submitted" when the participant submits on the tablet
 }
 async function pushQuestionnaire(key, msgId) {
   if (!S.sid) { setMsg(msgId,"No session.","err"); return; }
@@ -364,14 +401,22 @@ async function pushQuestionnaire(key, msgId) {
   setQStatus(key);
 }
 async function setQStatus(key) {
-  const r = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/questionnaires/"+key+"/responses");
+  // Query the EXACT (key, version); finalized === a submitted (non-draft) response exists.
+  const v = Q_VERSION[key];
+  const path = "/sessions/"+encodeURIComponent(S.sid)+"/questionnaires/"+encodeURIComponent(key)+"/responses"
+    + (v ? ("?version="+encodeURIComponent(v)) : "");
+  const r = await api("GET", path);
   const el=$("qstat-"+key); if(!el) return;
   if (!r.ok) { el.textContent="unknown"; el.className="pill"; return; }
-  const done = !!(r.data && r.data.finalized);
+  const done = !!(r.data && r.data.finalized);   // finalized = submitted, not a draft
   el.textContent = done ? "submitted" : "pending";
   el.className = "pill " + (done ? "ok" : "warn");
 }
 function refreshQStatus(list){ (list||[]).forEach(q => setQStatus(q.questionnaire_key)); }
+// Poll questionnaire status on Stage 2/4 so a submit made on the tablet flips the
+// pill without the operator re-navigating. Stopped on stage change (goStage).
+function stopQPoll(){ if(S.qPollTimer){ clearInterval(S.qPollTimer); S.qPollTimer=null; } }
+function startQPoll(list){ stopQPoll(); S.qPollTimer=setInterval(()=>refreshQStatus(list), 2500); }
 
 // --- Stage 3: live polling --------------------------------------------------
 function stopPoll(){ if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; } }
@@ -395,7 +440,67 @@ async function refreshLive() {
   refreshStatus();
   // notes
   refreshNotes();
+  // v2 launch handoff
+  refreshLaunch();
 }
+
+// --- v2: robot launch handoff ----------------------------------------------
+function stampOrDash(v){ return v ? v.replace("T"," ").slice(0,19) : "—"; }
+async function refreshLaunch() {
+  if (!S.sid) return;
+  // canonical config (also drives the fallback block)
+  const cr = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/launch/config");
+  if (cr.ok) {
+    const c = cr.data;
+    $("launch-sid").textContent = c.session_id;
+    $("launch-pid").textContent = c.participant_id;
+    $("launch-group").textContent = (c.pb_order_group!=null? c.pb_order_group : "—");
+    $("launch-support").textContent = (c.support_condition!=null? (c.support_condition+(c.support_label? " ("+c.support_label+")":"")) : "—");
+    $("launch-fallback").value =
+      "# Platform is the single source of truth — use these exact values.\n" +
+      "session_id="+c.session_id+"\n" +
+      "participant_id="+c.participant_id+"\n" +
+      "configuration="+(c.pb_order_group!=null?c.pb_order_group:"")+"      # = pb_order_group\n" +
+      "trainer_feedback_style="+(c.support_label||"")+"   # support_condition "+(c.support_condition)+"\n" +
+      "platform_base="+c.platform_base+"\n" +
+      "# Robot config endpoint: "+c.platform_base+"/sessions/"+c.session_id+"/launch/config";
+  }
+  // launch state
+  const s = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/launch/status");
+  const pill=$("launch-status");
+  if (!s.ok) { pill.textContent="unavailable"; pill.className="pill warn"; return; }
+  const d = s.data, st = d.status || "none";
+  pill.textContent = st.replace("_"," ");
+  pill.className = "pill " + (st==="started"?"ok" : st==="error"?"bad" : st==="none"?"" : "warn");
+  $("launch-fetched").textContent = stampOrDash(d.config_fetched_at);
+  $("launch-startreq").textContent = stampOrDash(d.start_requested_at);
+  $("launch-started").textContent = stampOrDash(d.started_at);
+  $("launch-error").textContent = d.error_text ? d.error_text : "—";
+  // Start only when a valid running session exists
+  $("btn-launch-start").disabled = !S.running;
+}
+$("btn-launch-prepare").onclick = async () => {
+  if (!S.sid) return;
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/launch/prepare");
+  if (!r.ok) { setMsg("launch-msg","Prepare failed: "+r.error,"err"); return; }
+  setMsg("launch-msg","Launch config prepared. Robots can fetch it now.","ok");
+  refreshLaunch();
+};
+$("btn-launch-start").onclick = async () => {
+  if (!S.sid) return;
+  if (!confirm("Send the start signal to the robots for session "+S.sid+"?")) return;
+  const btn=$("btn-launch-start"); btn.disabled=true;
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/launch/start");
+  btn.disabled=false;
+  if (!r.ok) { setMsg("launch-msg","Start failed: "+r.error,"err"); return; }
+  setMsg("launch-msg","Start requested — waiting for the robots to acknowledge.","ok");
+  refreshLaunch();
+};
+$("btn-launch-copy").onclick = async () => {
+  const t=$("launch-fallback"); t.select();
+  try { await navigator.clipboard.writeText(t.value); setMsg("launch-msg","Fallback config copied.","ok"); }
+  catch(_) { document.execCommand && document.execCommand("copy"); setMsg("launch-msg","Selected — press Ctrl/Cmd+C to copy.",""); }
+};
 
 let CURRENT_OPEN_GATE = null;
 function phaseForGate(g){ if(g.scope==="stage") return g.stage_key; return g.checkpoint==="post_kid_response"?"rehearsal":"feedback"; }
@@ -533,7 +638,7 @@ $("btn-export").onclick = async () => {
 
 $("btn-reset").onclick = () => {
   if(!confirm("Clear the console for the next participant? (The session and its data stay saved on the platform.)")) return;
-  stopPoll();
+  stopPoll(); stopQPoll();
   S.pid=S.sid=S.state=null; S.running=false; S.stage="setup";
   $("in-pid").value=$("in-sid").value=""; setMsg("setup-msg","");
   initChecklists();
