@@ -18,6 +18,7 @@ dist/
 /data/bst.db
 /data/bst.db-journal
 /data/bst.db-wal
+/data/bst.db-shm
 /data/recordings/*
 /data/exports/*
 /data/logs/*
