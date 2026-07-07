@@ -22,12 +22,29 @@ from __future__ import annotations
 
 import logging
 import shutil
+import sqlite3
 from pathlib import Path
 
 from app.core.config import settings
 from app.core.timeutil import now_utc
 
 logger = logging.getLogger("bst.backup")
+
+
+def _checkpoint_wal(src: Path) -> None:
+    """Fold any WAL sidecar into the main DB file so a plain file-copy backup is
+    consistent in WAL mode (recent commits otherwise live in ``<db>-wal`` until
+    checkpointed). Best-effort and never raises: a checkpoint failure must not
+    break the backup. A no-op on a non-WAL DB."""
+    try:
+        con = sqlite3.connect(str(src), timeout=10)
+        try:
+            con.execute("PRAGMA busy_timeout=10000")
+            con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        finally:
+            con.close()
+    except Exception as exc:  # noqa: BLE001 - best effort
+        logger.warning("WAL checkpoint before backup failed (%s): %s", src, exc)
 
 
 def backup_database(reason: str) -> Path | None:
@@ -43,6 +60,8 @@ def backup_database(reason: str) -> Path | None:
     dest = backups_dir / f"bst-{ts}-{reason}.db"
     try:
         backups_dir.mkdir(parents=True, exist_ok=True)
+        # Checkpoint first so the copied .db contains all committed WAL data.
+        _checkpoint_wal(src)
         shutil.copy2(src, dest)  # non-destructive; preserves metadata
         logger.info("DB backup written (%s): %s", reason, dest)
     except Exception as exc:  # never let a backup failure break the caller
