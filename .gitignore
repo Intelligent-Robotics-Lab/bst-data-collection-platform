@@ -32,6 +32,8 @@ dist/
 /data/bst.db-wal
 /data/bst.db-shm
 /data/recordings/*
+# Archival copies made by the console's Save / Save As (participant A/V).
+/data/saved_recordings/*
 /data/exports/*
 /data/logs/*
 /data/sessions/*
