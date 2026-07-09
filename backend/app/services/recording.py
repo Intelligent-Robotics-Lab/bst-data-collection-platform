@@ -246,11 +246,15 @@ def stop_session_recording(db: Session, session: StudySession) -> MediaRecording
         return None
 
     proc = active.process
+    # If ffmpeg already exited on its own before we asked it to stop, it died
+    # mid-recording (e.g. a device that failed just after start) -- this is NOT a
+    # clean finish, no matter what the timeline said during the session.
+    already_exited = proc.poll() is not None
     status_final = "completed"
     error_text: str | None = None
 
     try:
-        if proc.poll() is None:
+        if not already_exited:
             # Graceful stop: 'q' on stdin tells ffmpeg to finalize the file.
             try:
                 if proc.stdin is not None:
@@ -279,6 +283,28 @@ def stop_session_recording(db: Session, session: StudySession) -> MediaRecording
             active.log_file.close()
         except Exception:  # noqa: BLE001
             pass
+
+    # Research-integrity check: a 'completed' status must correspond to a real,
+    # non-empty file from a clean ffmpeg exit. A process that died on its own, a
+    # non-zero exit, or a missing/empty file is a FAILED capture -- we must never
+    # record success for A/V that is not on disk (a gap is a logged failure row,
+    # not a false success). This is what catches an early device failure that
+    # slipped past the start-time settle check.
+    returncode = proc.poll()
+    out_path = Path(active.file_path)
+    file_ok = out_path.exists() and out_path.stat().st_size > 0
+    if already_exited:
+        status_final = "failed"
+        error_text = (
+            f"ffmpeg exited on its own before stop (code {returncode}); no clean "
+            "recording -- see the ffmpeg log in LOGS_DIR"
+        )
+    elif status_final == "completed" and returncode not in (0, None):
+        status_final = "failed"
+        error_text = f"ffmpeg exited with code {returncode}; see the ffmpeg log in LOGS_DIR"
+    if status_final == "completed" and not file_ok:
+        status_final = "failed"
+        error_text = f"recording file missing or empty at stop ({out_path})"
 
     now = now_utc()
     rec = db.get(MediaRecording, active.recording_id)

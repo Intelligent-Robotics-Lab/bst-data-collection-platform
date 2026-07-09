@@ -57,6 +57,97 @@ def test_command_builder_test_source_swaps_inputs_keeps_encoder(monkeypatch):
     assert "-vsync" in cmd and cmd[cmd.index("-pix_fmt") + 1] == "yuv420p"
 
 
+# --- stop-time integrity (a 'completed' row must mean a real file) -----------
+
+
+class _FakeStdin:
+    def write(self, b): pass
+    def flush(self): pass
+    def close(self): pass
+
+
+class _FakeProc:
+    """Stand-in for the ffmpeg Popen. exited=True => already dead before stop."""
+
+    def __init__(self, rc=0, exited=False):
+        self._rc = rc if exited else None
+        self._rc_after = rc
+        self.stdin = _FakeStdin()
+
+    def poll(self):
+        return self._rc
+
+    def wait(self, timeout=None):
+        self._rc = self._rc_after
+        return self._rc
+
+
+class _FakeLog:
+    def close(self): pass
+
+
+def _running_recording(client, _session_factory, sid, pid, file_path):
+    from app.models.signals import MediaRecording
+
+    client.post("/participants", json={"participant_id": pid})
+    client.post("/sessions", json={"session_id": sid, "participant_id": pid, "scenario_type": "bst_dtt"})
+    db = _session_factory()
+    rec = MediaRecording(
+        session_id=sid, participant_id=pid, recording_type="av",
+        file_path=str(file_path), status="recording",
+    )
+    db.add(rec)
+    db.commit()
+    db.refresh(rec)
+    return db, rec
+
+
+def test_stop_marks_failed_when_ffmpeg_died_before_stop(client, _session_factory, tmp_path):
+    """The pilot bug: ffmpeg died on its own (e.g. audio device failed just after
+    start), so it is already dead at stop time and produced no file. That must be
+    'failed', never a false 'completed'."""
+    from app.services import recording
+    from app.services.session_service import get_session_or_404
+
+    missing = tmp_path / "never_written.mp4"
+    db, rec = _running_recording(client, _session_factory, "R_S1", "RP", missing)
+    recording._active["R_S1"] = recording._Active(
+        _FakeProc(rc=1, exited=True), rec.recording_id, missing, _FakeLog()
+    )
+    out = recording.stop_session_recording(db, get_session_or_404(db, "R_S1"))
+    assert out.status == "failed"
+    assert out.error_text and "exited on its own" in out.error_text
+
+
+def test_stop_marks_failed_when_file_missing_despite_clean_exit(client, _session_factory, tmp_path):
+    from app.services import recording
+    from app.services.session_service import get_session_or_404
+
+    missing = tmp_path / "empty.mp4"  # never created
+    db, rec = _running_recording(client, _session_factory, "R_S2", "RP2", missing)
+    recording._active["R_S2"] = recording._Active(
+        _FakeProc(rc=0, exited=False), rec.recording_id, missing, _FakeLog()
+    )
+    out = recording.stop_session_recording(db, get_session_or_404(db, "R_S2"))
+    assert out.status == "failed"
+    assert out.error_text and "missing or empty" in out.error_text
+
+
+def test_stop_marks_completed_when_clean_exit_and_file_present(client, _session_factory, tmp_path):
+    from app.services import recording
+    from app.services.session_service import get_session_or_404
+
+    good = tmp_path / "ok.mp4"
+    good.write_bytes(b"\x00" * 4096)  # non-empty file present
+    db, rec = _running_recording(client, _session_factory, "R_S3", "RP3", good)
+    recording._active["R_S3"] = recording._Active(
+        _FakeProc(rc=0, exited=False), rec.recording_id, good, _FakeLog()
+    )
+    out = recording.stop_session_recording(db, get_session_or_404(db, "R_S3"))
+    assert out.status == "completed"
+    assert not out.error_text
+
+
 # --- lifecycle behavior ------------------------------------------------------
 
 
