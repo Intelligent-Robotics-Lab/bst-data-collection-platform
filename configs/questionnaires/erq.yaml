@@ -1,19 +1,29 @@
-# Emotion Regulation Questionnaire (ERQ; Gross & John, 2003). 10 items, 7-point.
+# Emotion Regulation Questionnaire (ERQ; Gross & John, 2003).
 #
-# RESEARCH-INTEGRITY NOTE (CLAUDE.md + requirements.md): the official ERQ item
-# wording is copyrighted and is NOT reproduced here. Each item carries a stable
-# item_id and a neutral placeholder `text`. To run with the real instrument,
-# drop the official wording into each item's `text` field -- a config edit only,
-# no code change. The standard subscale mapping (Reappraisal = items
-# 1,3,5,7,8,10; Suppression = items 2,4,6,9) is encoded as factual metadata; the
-# engine does not score (scoring is post hoc per PRD).
+# COPYRIGHT / PUBLIC REPO: the official ERQ item wording is copyrighted and is
+# NOT stored in this tracked config. Each item carries only a stable item_id,
+# its position (index), and its subscale. The verbatim item text is loaded at
+# render time from the GITIGNORED local file:
+#     configs/questionnaires/local/erq.items.yaml
+# (join by item_id). On a public clone with no local file, items render with
+# empty text -- structure only, no copyrighted text present.
+#
+# ITEM ORDER IS LOAD-BEARING -- DO NOT REORDER. Per the source, items 1 and 3
+# define the terms "positive emotion" and "negative emotion" that later items
+# refer to; erq_01 and erq_03 must precede the items that depend on them. The
+# `index` field fixes this order and the tablet renders by index.
+#
+# SCORING (post hoc; the engine does not score). NO reversals. Confirmed from
+# the source and the deployment spec:
+#   Reappraisal = items 1, 3, 5, 7, 8, 10
+#   Suppression = items 2, 4, 6, 9
 questionnaire_key: erq
 version: "1.0.0"
 title: "Emotion Regulation Questionnaire (ERQ)"
 timepoint: pre
 scale_type: likert_7
 
-# Default response scale; applied to every item of type 'likert'.
+# Default response scale, applied to every likert item.
 response_scale:
   type: likert
   min: 1
@@ -23,14 +33,23 @@ response_scale:
     4: "neutral"
     7: "strongly agree"
 
+# Scoring key (factual metadata; aggregation is post hoc, typically the mean of
+# each subscale's items). reversals: none is explicit for the ERQ.
+scoring:
+  reversals: none
+  subscales:
+    reappraisal: [erq_01, erq_03, erq_05, erq_07, erq_08, erq_10]
+    suppression: [erq_02, erq_04, erq_06, erq_09]
+
+# Item text lives in the gitignored local file (by item_id); order is load-bearing.
 items:
-  - {item_id: erq_01, index: 1,  subscale: reappraisal, text: "ERQ item 1 (placeholder; insert official wording)"}
-  - {item_id: erq_02, index: 2,  subscale: suppression, text: "ERQ item 2 (placeholder; insert official wording)"}
-  - {item_id: erq_03, index: 3,  subscale: reappraisal, text: "ERQ item 3 (placeholder; insert official wording)"}
-  - {item_id: erq_04, index: 4,  subscale: suppression, text: "ERQ item 4 (placeholder; insert official wording)"}
-  - {item_id: erq_05, index: 5,  subscale: reappraisal, text: "ERQ item 5 (placeholder; insert official wording)"}
-  - {item_id: erq_06, index: 6,  subscale: suppression, text: "ERQ item 6 (placeholder; insert official wording)"}
-  - {item_id: erq_07, index: 7,  subscale: reappraisal, text: "ERQ item 7 (placeholder; insert official wording)"}
-  - {item_id: erq_08, index: 8,  subscale: reappraisal, text: "ERQ item 8 (placeholder; insert official wording)"}
-  - {item_id: erq_09, index: 9,  subscale: suppression, text: "ERQ item 9 (placeholder; insert official wording)"}
-  - {item_id: erq_10, index: 10, subscale: reappraisal, text: "ERQ item 10 (placeholder; insert official wording)"}
+  - {item_id: erq_01, index: 1,  subscale: reappraisal}
+  - {item_id: erq_02, index: 2,  subscale: suppression}
+  - {item_id: erq_03, index: 3,  subscale: reappraisal}
+  - {item_id: erq_04, index: 4,  subscale: suppression}
+  - {item_id: erq_05, index: 5,  subscale: reappraisal}
+  - {item_id: erq_06, index: 6,  subscale: suppression}
+  - {item_id: erq_07, index: 7,  subscale: reappraisal}
+  - {item_id: erq_08, index: 8,  subscale: reappraisal}
+  - {item_id: erq_09, index: 9,  subscale: suppression}
+  - {item_id: erq_10, index: 10, subscale: reappraisal}

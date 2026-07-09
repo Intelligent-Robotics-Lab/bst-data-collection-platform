@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.timeutil import now_utc
 from app.models.dtt import DttLoop, DttTrial
+from app.models.fidelity import FidelityScore
 from app.models.participant import Participant
 from app.models.questionnaire import QuestionnaireResponse, QuestionnaireScore
 from app.models.session import StudySession
@@ -163,6 +164,14 @@ def _write_raw_dumps(db: Session, session: StudySession, out: Path) -> tuple[lis
         select(SyncGate).where(SyncGate.session_id == sid).order_by(SyncGate.gate_id)
     ).all()
     csv_dump("sync_gates.csv", SyncGate, gates)
+
+    # fidelity_scores: human ABA/BST fidelity ratings, one row per scored loop.
+    fidelity = db.scalars(
+        select(FidelityScore)
+        .where(FidelityScore.session_id == sid)
+        .order_by(FidelityScore.loop_index)
+    ).all()
+    csv_dump("fidelity_scores.csv", FidelityScore, fidelity)
 
     # perception_events: JSONL, raw_payload parsed back to nested JSON
     perception = db.scalars(

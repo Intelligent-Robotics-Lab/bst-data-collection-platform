@@ -1,15 +1,22 @@
 # Big Five Inventory-2 Short Form (BFI-2-S; Soto & John, 2017). 30 items, 5-point.
 #
-# RESEARCH-INTEGRITY NOTE (CLAUDE.md + requirements.md): the official BFI-2-S
-# item wording is copyrighted and is NOT reproduced here. Each item has a stable
-# item_id and a neutral placeholder `text`; drop the official wording into each
-# `text` to run the real instrument (config edit only, no code change).
+# COPYRIGHT / PUBLIC REPO: BFI-2 items are copyright 2015 Oliver P. John &
+# Christopher J. Soto (permission for personal and research use). The verbatim
+# item text is NOT in this tracked config; it is loaded at render time from the
+# GITIGNORED local file configs/questionnaires/local/bfi2s.items.yaml (join by
+# item_id). On a public clone with no local file, items render with empty text.
 #
-# The five domains (6 items each) are encoded as factual metadata in contiguous
-# blocks. The official BFI-2-S interleaves items and reverse-keys several of
-# them; confirm the exact item order and reverse-scoring keys against the
-# published instrument when inserting the real wording. The engine does not
-# score (scoring is post hoc per PRD), so this metadata is informational only.
+# SCORING (post hoc; engine does not score). Soto & John (2017), J. Research in
+# Personality 68, 69-81. Each domain = mean of its 6 items; reverse-keyed items
+# are recoded 6 - raw (1..5 scale) before averaging. The 15 facets (2 items
+# each) are also recorded. The domain/facet/reverse assignments below are the
+# published BFI-2-S key, and each was cross-checked against the verbatim item
+# wording (every reverse item is the semantic inverse of its facet).
+#
+# VERIFY-BEFORE-USE: the uploaded source (docx) contained the items + citation
+# but not the scoring table itself. Reconfirm this reverse set against Soto &
+# John (2017) before analysis. Reverse-scored set (15): 1, 3, 7, 8, 10, 14, 17,
+# 19, 20, 21, 24, 26, 27, 28, 30.
 questionnaire_key: bfi2s
 version: "1.0.0"
 title: "Big Five Inventory-2 Short Form (BFI-2-S)"
@@ -21,38 +28,67 @@ response_scale:
   min: 1
   max: 5
   anchors:
-    1: "disagree strongly"
-    3: "neutral; no opinion"
-    5: "agree strongly"
+    1: "Disagree strongly"
+    2: "Disagree a little"
+    3: "Neutral"
+    4: "Agree a little"
+    5: "Agree strongly"
 
+scoring:
+  reverse_scored: [bfi_01, bfi_03, bfi_07, bfi_08, bfi_10, bfi_14, bfi_17, bfi_19, bfi_20, bfi_21, bfi_24, bfi_26, bfi_27, bfi_28, bfi_30]
+  domains:
+    extraversion:          [bfi_01, bfi_06, bfi_11, bfi_16, bfi_21, bfi_26]
+    agreeableness:         [bfi_02, bfi_07, bfi_12, bfi_17, bfi_22, bfi_27]
+    conscientiousness:     [bfi_03, bfi_08, bfi_13, bfi_18, bfi_23, bfi_28]
+    negative_emotionality: [bfi_04, bfi_09, bfi_14, bfi_19, bfi_24, bfi_29]
+    open_mindedness:       [bfi_05, bfi_10, bfi_15, bfi_20, bfi_25, bfi_30]
+  facets:
+    sociability:            [bfi_01, bfi_16]
+    assertiveness:          [bfi_06, bfi_21]
+    energy_level:           [bfi_11, bfi_26]
+    compassion:             [bfi_02, bfi_17]
+    respectfulness:         [bfi_07, bfi_22]
+    trust:                  [bfi_12, bfi_27]
+    organization:           [bfi_03, bfi_18]
+    productiveness:         [bfi_08, bfi_23]
+    responsibility:         [bfi_13, bfi_28]
+    anxiety:                [bfi_04, bfi_19]
+    depression:             [bfi_09, bfi_24]
+    emotional_volatility:   [bfi_14, bfi_29]
+    aesthetic_sensibility:  [bfi_05, bfi_20]
+    intellectual_curiosity: [bfi_10, bfi_25]
+    creative_imagination:   [bfi_15, bfi_30]
+
+# Item text lives in the gitignored local file (by item_id). domain/facet fixed
+# by the published key; reverse: true marks a reverse-keyed item.
 items:
-  - {item_id: bfi_01, index: 1,  domain: extraversion,         text: "BFI-2-S item 1 (placeholder; insert official wording)"}
-  - {item_id: bfi_02, index: 2,  domain: extraversion,         text: "BFI-2-S item 2 (placeholder; insert official wording)"}
-  - {item_id: bfi_03, index: 3,  domain: extraversion,         text: "BFI-2-S item 3 (placeholder; insert official wording)"}
-  - {item_id: bfi_04, index: 4,  domain: extraversion,         text: "BFI-2-S item 4 (placeholder; insert official wording)"}
-  - {item_id: bfi_05, index: 5,  domain: extraversion,         text: "BFI-2-S item 5 (placeholder; insert official wording)"}
-  - {item_id: bfi_06, index: 6,  domain: extraversion,         text: "BFI-2-S item 6 (placeholder; insert official wording)"}
-  - {item_id: bfi_07, index: 7,  domain: agreeableness,        text: "BFI-2-S item 7 (placeholder; insert official wording)"}
-  - {item_id: bfi_08, index: 8,  domain: agreeableness,        text: "BFI-2-S item 8 (placeholder; insert official wording)"}
-  - {item_id: bfi_09, index: 9,  domain: agreeableness,        text: "BFI-2-S item 9 (placeholder; insert official wording)"}
-  - {item_id: bfi_10, index: 10, domain: agreeableness,        text: "BFI-2-S item 10 (placeholder; insert official wording)"}
-  - {item_id: bfi_11, index: 11, domain: agreeableness,        text: "BFI-2-S item 11 (placeholder; insert official wording)"}
-  - {item_id: bfi_12, index: 12, domain: agreeableness,        text: "BFI-2-S item 12 (placeholder; insert official wording)"}
-  - {item_id: bfi_13, index: 13, domain: conscientiousness,    text: "BFI-2-S item 13 (placeholder; insert official wording)"}
-  - {item_id: bfi_14, index: 14, domain: conscientiousness,    text: "BFI-2-S item 14 (placeholder; insert official wording)"}
-  - {item_id: bfi_15, index: 15, domain: conscientiousness,    text: "BFI-2-S item 15 (placeholder; insert official wording)"}
-  - {item_id: bfi_16, index: 16, domain: conscientiousness,    text: "BFI-2-S item 16 (placeholder; insert official wording)"}
-  - {item_id: bfi_17, index: 17, domain: conscientiousness,    text: "BFI-2-S item 17 (placeholder; insert official wording)"}
-  - {item_id: bfi_18, index: 18, domain: conscientiousness,    text: "BFI-2-S item 18 (placeholder; insert official wording)"}
-  - {item_id: bfi_19, index: 19, domain: negative_emotionality, text: "BFI-2-S item 19 (placeholder; insert official wording)"}
-  - {item_id: bfi_20, index: 20, domain: negative_emotionality, text: "BFI-2-S item 20 (placeholder; insert official wording)"}
-  - {item_id: bfi_21, index: 21, domain: negative_emotionality, text: "BFI-2-S item 21 (placeholder; insert official wording)"}
-  - {item_id: bfi_22, index: 22, domain: negative_emotionality, text: "BFI-2-S item 22 (placeholder; insert official wording)"}
-  - {item_id: bfi_23, index: 23, domain: negative_emotionality, text: "BFI-2-S item 23 (placeholder; insert official wording)"}
-  - {item_id: bfi_24, index: 24, domain: negative_emotionality, text: "BFI-2-S item 24 (placeholder; insert official wording)"}
-  - {item_id: bfi_25, index: 25, domain: open_mindedness,      text: "BFI-2-S item 25 (placeholder; insert official wording)"}
-  - {item_id: bfi_26, index: 26, domain: open_mindedness,      text: "BFI-2-S item 26 (placeholder; insert official wording)"}
-  - {item_id: bfi_27, index: 27, domain: open_mindedness,      text: "BFI-2-S item 27 (placeholder; insert official wording)"}
-  - {item_id: bfi_28, index: 28, domain: open_mindedness,      text: "BFI-2-S item 28 (placeholder; insert official wording)"}
-  - {item_id: bfi_29, index: 29, domain: open_mindedness,      text: "BFI-2-S item 29 (placeholder; insert official wording)"}
-  - {item_id: bfi_30, index: 30, domain: open_mindedness,      text: "BFI-2-S item 30 (placeholder; insert official wording)"}
+  - {item_id: bfi_01, index: 1,  domain: extraversion,          facet: sociability,            reverse: true}
+  - {item_id: bfi_02, index: 2,  domain: agreeableness,         facet: compassion}
+  - {item_id: bfi_03, index: 3,  domain: conscientiousness,     facet: organization,           reverse: true}
+  - {item_id: bfi_04, index: 4,  domain: negative_emotionality, facet: anxiety}
+  - {item_id: bfi_05, index: 5,  domain: open_mindedness,       facet: aesthetic_sensibility}
+  - {item_id: bfi_06, index: 6,  domain: extraversion,          facet: assertiveness}
+  - {item_id: bfi_07, index: 7,  domain: agreeableness,         facet: respectfulness,         reverse: true}
+  - {item_id: bfi_08, index: 8,  domain: conscientiousness,     facet: productiveness,         reverse: true}
+  - {item_id: bfi_09, index: 9,  domain: negative_emotionality, facet: depression}
+  - {item_id: bfi_10, index: 10, domain: open_mindedness,       facet: intellectual_curiosity, reverse: true}
+  - {item_id: bfi_11, index: 11, domain: extraversion,          facet: energy_level}
+  - {item_id: bfi_12, index: 12, domain: agreeableness,         facet: trust}
+  - {item_id: bfi_13, index: 13, domain: conscientiousness,     facet: responsibility}
+  - {item_id: bfi_14, index: 14, domain: negative_emotionality, facet: emotional_volatility,   reverse: true}
+  - {item_id: bfi_15, index: 15, domain: open_mindedness,       facet: creative_imagination}
+  - {item_id: bfi_16, index: 16, domain: extraversion,          facet: sociability}
+  - {item_id: bfi_17, index: 17, domain: agreeableness,         facet: compassion,             reverse: true}
+  - {item_id: bfi_18, index: 18, domain: conscientiousness,     facet: organization}
+  - {item_id: bfi_19, index: 19, domain: negative_emotionality, facet: anxiety,                reverse: true}
+  - {item_id: bfi_20, index: 20, domain: open_mindedness,       facet: aesthetic_sensibility,  reverse: true}
+  - {item_id: bfi_21, index: 21, domain: extraversion,          facet: assertiveness,          reverse: true}
+  - {item_id: bfi_22, index: 22, domain: agreeableness,         facet: respectfulness}
+  - {item_id: bfi_23, index: 23, domain: conscientiousness,     facet: productiveness}
+  - {item_id: bfi_24, index: 24, domain: negative_emotionality, facet: depression,             reverse: true}
+  - {item_id: bfi_25, index: 25, domain: open_mindedness,       facet: intellectual_curiosity}
+  - {item_id: bfi_26, index: 26, domain: extraversion,          facet: energy_level,           reverse: true}
+  - {item_id: bfi_27, index: 27, domain: agreeableness,         facet: trust,                  reverse: true}
+  - {item_id: bfi_28, index: 28, domain: conscientiousness,     facet: responsibility,         reverse: true}
+  - {item_id: bfi_29, index: 29, domain: negative_emotionality, facet: emotional_volatility}
+  - {item_id: bfi_30, index: 30, domain: open_mindedness,       facet: creative_imagination,   reverse: true}

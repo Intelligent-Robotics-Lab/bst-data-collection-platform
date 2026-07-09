@@ -20,9 +20,25 @@ engine = create_engine(
 
 @event.listens_for(Engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record):  # noqa: ANN001
-    """Enforce foreign keys on every SQLite connection."""
+    """Per-connection SQLite tuning.
+
+    - foreign_keys=ON: enforce FKs (off by default in SQLite).
+    - journal_mode=WAL: readers no longer block writers. During a live session the
+      DB takes high-frequency perception writes (~200-500ms) plus gate/timeline
+      writes; without WAL a read like BST's ``GET /go-ahead`` gate poll or the
+      console's live poll waits on the single-writer lock (up to the busy timeout,
+      ~5s) and can exceed the client's HTTP read timeout. WAL lets those reads run
+      concurrently, so polls return in milliseconds. (On the in-memory test DB
+      this pragma is a harmless no-op that stays 'memory'.)
+    - busy_timeout=10000: wait up to 10s for a brief lock instead of erroring.
+    - synchronous=NORMAL: durable under WAL and far fewer fsyncs on the slow
+      shared disk.
+    """
     cursor = dbapi_connection.cursor()
     cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA busy_timeout=10000")
+    cursor.execute("PRAGMA synchronous=NORMAL")
     cursor.close()
 
 

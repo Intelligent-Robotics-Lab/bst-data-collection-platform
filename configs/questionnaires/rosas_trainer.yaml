@@ -2,12 +2,17 @@
 # robot. 18 items, 7-point. Three subscales (Warmth, Competence, Discomfort),
 # 6 items each.
 #
-# RESEARCH-INTEGRITY NOTE (CLAUDE.md + requirements.md): RoSAS items are single
-# adjectives rated for how closely they are associated with the robot. The
-# official adjectives are NOT reproduced here; each item carries a stable item_id
-# and a neutral placeholder `text`. Drop the official adjective into each `text`
-# to run the real instrument (config edit only, no code change). Subscale
-# membership is factual metadata; the engine does not score (post hoc per PRD).
+# COPYRIGHT / PUBLIC REPO: RoSAS items are single adjectives rated for how
+# closely they are associated with the robot. The verbatim adjectives are NOT in
+# this tracked config; they are loaded at render time from the GITIGNORED local
+# file configs/questionnaires/local/rosas_trainer.items.yaml (join by item_id).
+# Same 18 adjectives as rosas_child; the two differ only in the target agent
+# (trainer vs child), carried by `target` and by the instruction in the local
+# file. On a public clone with no local file, items render with empty text.
+#
+# SCORING (post hoc; engine does not score). No reversals. Each dimension = mean
+# of its 6 items. Source order groups the items by dimension (Warmth 1-6,
+# Competence 7-12, Discomfort 13-18).
 questionnaire_key: rosas_trainer
 version: "1.0.0"
 title: "RoSAS - Trainer Robot"
@@ -20,26 +25,38 @@ response_scale:
   min: 1
   max: 7
   anchors:
-    1: "definitely not associated"
-    4: "neutral"
-    7: "definitely associated"
+    1: "Not at all associated"
+    2: "Slightly associated"
+    3: "Somewhat associated"
+    4: "Moderately associated"
+    5: "Very associated"
+    6: "Extremely associated"
+    7: "Completely associated"
 
+scoring:
+  reversals: none
+  dimensions:
+    warmth:     [rosas_tr_01, rosas_tr_02, rosas_tr_03, rosas_tr_04, rosas_tr_05, rosas_tr_06]
+    competence: [rosas_tr_07, rosas_tr_08, rosas_tr_09, rosas_tr_10, rosas_tr_11, rosas_tr_12]
+    discomfort: [rosas_tr_13, rosas_tr_14, rosas_tr_15, rosas_tr_16, rosas_tr_17, rosas_tr_18]
+
+# Adjective text lives in the gitignored local file (by item_id).
 items:
-  - {item_id: rosas_tr_01, index: 1,  subscale: warmth,     text: "Trainer RoSAS warmth item 1 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_02, index: 2,  subscale: warmth,     text: "Trainer RoSAS warmth item 2 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_03, index: 3,  subscale: warmth,     text: "Trainer RoSAS warmth item 3 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_04, index: 4,  subscale: warmth,     text: "Trainer RoSAS warmth item 4 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_05, index: 5,  subscale: warmth,     text: "Trainer RoSAS warmth item 5 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_06, index: 6,  subscale: warmth,     text: "Trainer RoSAS warmth item 6 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_07, index: 7,  subscale: competence, text: "Trainer RoSAS competence item 1 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_08, index: 8,  subscale: competence, text: "Trainer RoSAS competence item 2 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_09, index: 9,  subscale: competence, text: "Trainer RoSAS competence item 3 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_10, index: 10, subscale: competence, text: "Trainer RoSAS competence item 4 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_11, index: 11, subscale: competence, text: "Trainer RoSAS competence item 5 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_12, index: 12, subscale: competence, text: "Trainer RoSAS competence item 6 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_13, index: 13, subscale: discomfort, text: "Trainer RoSAS discomfort item 1 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_14, index: 14, subscale: discomfort, text: "Trainer RoSAS discomfort item 2 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_15, index: 15, subscale: discomfort, text: "Trainer RoSAS discomfort item 3 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_16, index: 16, subscale: discomfort, text: "Trainer RoSAS discomfort item 4 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_17, index: 17, subscale: discomfort, text: "Trainer RoSAS discomfort item 5 (placeholder; insert official adjective)"}
-  - {item_id: rosas_tr_18, index: 18, subscale: discomfort, text: "Trainer RoSAS discomfort item 6 (placeholder; insert official adjective)"}
+  - {item_id: rosas_tr_01, index: 1,  subscale: warmth}
+  - {item_id: rosas_tr_02, index: 2,  subscale: warmth}
+  - {item_id: rosas_tr_03, index: 3,  subscale: warmth}
+  - {item_id: rosas_tr_04, index: 4,  subscale: warmth}
+  - {item_id: rosas_tr_05, index: 5,  subscale: warmth}
+  - {item_id: rosas_tr_06, index: 6,  subscale: warmth}
+  - {item_id: rosas_tr_07, index: 7,  subscale: competence}
+  - {item_id: rosas_tr_08, index: 8,  subscale: competence}
+  - {item_id: rosas_tr_09, index: 9,  subscale: competence}
+  - {item_id: rosas_tr_10, index: 10, subscale: competence}
+  - {item_id: rosas_tr_11, index: 11, subscale: competence}
+  - {item_id: rosas_tr_12, index: 12, subscale: competence}
+  - {item_id: rosas_tr_13, index: 13, subscale: discomfort}
+  - {item_id: rosas_tr_14, index: 14, subscale: discomfort}
+  - {item_id: rosas_tr_15, index: 15, subscale: discomfort}
+  - {item_id: rosas_tr_16, index: 16, subscale: discomfort}
+  - {item_id: rosas_tr_17, index: 17, subscale: discomfort}
+  - {item_id: rosas_tr_18, index: 18, subscale: discomfort}

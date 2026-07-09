@@ -1,0 +1,1018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BST Operator Console</title>
+  <style>
+    /* Operator console v1 - reliability over flash. Palette mirrors the tablet page. */
+    :root { --accent:#1a5; --accent-dark:#178; --ink:#1a1a1a; --muted:#667; --line:#e2e6ea;
+            --ok:#1a7f37; --warn:#b45309; --bad:#c0341d; --bg:#f4f6f8; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin:0; color:var(--ink); background:var(--bg); }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
+
+    /* Header */
+    header.bar { position: sticky; top:0; z-index:5; background:#fff; border-bottom:1px solid var(--line);
+      padding:.6rem 1.25rem; display:flex; flex-wrap:wrap; gap:.6rem 1.2rem; align-items:center; }
+    .idblock { display:flex; flex-direction:column; line-height:1.15; }
+    .idblock .pid { font-size:.8rem; color:var(--muted); }
+    .idblock .sid { font-size:1.15rem; font-weight:700; font-variant-numeric:tabular-nums; }
+    .idblock .sid .none { color:#aab; font-weight:500; }
+    .grow { flex:1 1 auto; }
+    .pill { display:inline-block; padding:.15rem .55rem; border-radius:999px; font-size:.8rem; font-weight:600;
+      border:1px solid var(--line); background:#fff; color:var(--muted); white-space:nowrap; }
+    .pill.state-running { background:#e8f7ef; color:var(--ok); border-color:#bfe6cd; }
+    .pill.state-created { background:#eef2f6; color:var(--muted); }
+    .pill.state-paused  { background:#fef3e2; color:var(--warn); border-color:#f6dcae; }
+    .pill.state-completed,.pill.state-stopped { background:#eef2f6; color:#345; }
+    .pill.ok{background:#e8f7ef;color:var(--ok);border-color:#bfe6cd;}
+    .pill.warn{background:#fef3e2;color:var(--warn);border-color:#f6dcae;}
+    .pill.bad{background:#fdecea;color:var(--bad);border-color:#f6c4bd;}
+    button.note-btn { border:1px solid var(--line); background:#fff; border-radius:9px; padding:.45rem .8rem;
+      font-size:.9rem; cursor:pointer; }
+
+    /* Stepper */
+    .stepper { display:flex; gap:.4rem; margin:1rem 0 1.2rem; flex-wrap:wrap; }
+    .step { flex:1 1 0; min-width:120px; text-align:center; padding:.5rem .3rem; border:1px solid var(--line);
+      border-radius:10px; background:#fff; color:var(--muted); font-size:.9rem; cursor:pointer; user-select:none; }
+    .step.active { border-color:var(--accent); background:#e8f7ef; color:var(--accent-dark); font-weight:700; }
+    .step.locked { opacity:.5; cursor:not-allowed; }
+    .step .n { font-size:.72rem; display:block; }
+
+    /* Cards */
+    .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:1rem 1.1rem; margin-bottom:1rem; }
+    .card h2 { font-size:1.15rem; margin:0 0 .2rem; }
+    .card p.hint { color:var(--muted); font-size:.9rem; margin:.1rem 0 .9rem; }
+    label.fld { display:block; margin:.5rem 0; font-size:.95rem; }
+    label.fld span { display:block; color:var(--muted); font-size:.82rem; margin-bottom:.2rem; }
+    input[type=text], select, textarea { width:100%; font-size:1rem; padding:.55rem .6rem; border:2px solid #cdd5db;
+      border-radius:9px; font-family:inherit; }
+    .row { display:flex; gap:.8rem; flex-wrap:wrap; }
+    .row > * { flex:1 1 200px; }
+    button.primary { background:var(--accent); color:#fff; border:none; border-radius:10px; padding:.7rem 1.1rem;
+      font-size:1rem; font-weight:600; cursor:pointer; }
+    button.primary:disabled { background:#9bb; cursor:default; }
+    button.secondary { background:#fff; border:1px solid var(--line); border-radius:10px; padding:.6rem .9rem;
+      font-size:.95rem; cursor:pointer; }
+    button.danger { background:var(--bad); color:#fff; border:none; border-radius:10px; padding:.6rem 1rem;
+      font-size:1rem; font-weight:700; cursor:pointer; }
+    button.danger:disabled { background:#d8b0aa; cursor:default; }
+    ul.check { list-style:none; padding:0; margin:.3rem 0; }
+    ul.check li { padding:.25rem 0; }
+    ul.check label { cursor:pointer; }
+    .qrow { display:flex; align-items:center; gap:.6rem; padding:.4rem 0; border-top:1px solid var(--line); }
+    .qrow:first-child { border-top:none; }
+    .qrow .qname { flex:1 1 auto; }
+    .msg { min-height:1.2rem; font-size:.9rem; margin-top:.4rem; }
+    .msg.err { color:var(--bad); } .msg.ok { color:var(--ok); }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
+    @media (max-width:720px){ .grid2{ grid-template-columns:1fr; } }
+    .big { font-size:1.5rem; font-weight:700; }
+    .kv { display:flex; justify-content:space-between; padding:.28rem 0; border-top:1px solid var(--line); font-variant-numeric:tabular-nums; }
+    .kv:first-child{border-top:none;}
+    .gate-open { border:2px solid var(--warn); background:#fff8ef; border-radius:10px; padding:.8rem 1rem; }
+    .gate-none { color:var(--muted); }
+    .notelist { max-height:180px; overflow:auto; font-size:.88rem; }
+    .notelist .n { padding:.3rem 0; border-top:1px solid var(--line); }
+    .notelist .n:first-child{border-top:none;}
+    .stale { color:var(--warn); font-size:.82rem; }
+    /* Fidelity scoring (v3) */
+    .fidloops { display:flex; gap:.4rem; flex-wrap:wrap; margin:.4rem 0 .9rem; }
+    .fidloop { border:1px solid var(--line); border-radius:9px; padding:.35rem .65rem; cursor:pointer;
+      font-size:.9rem; background:#fff; display:flex; gap:.4rem; align-items:center; }
+    .fidloop.active { border-color:var(--accent); background:#e8f7ef; font-weight:700; }
+    .fidloop .dot { width:.6rem; height:.6rem; border-radius:50%; background:#cdd5db; flex:none; }
+    .fidloop.st-draft .dot { background:var(--warn); }
+    .fidloop.st-complete .dot { background:var(--ok); }
+    .fidrow { display:flex; align-items:center; gap:.6rem; padding:.4rem 0; border-top:1px solid var(--line); }
+    .fidrow:first-child { border-top:none; }
+    .fidrow .lbl { flex:1 1 auto; font-size:.92rem; }
+    .scorebtns { display:flex; gap:.25rem; flex:none; }
+    .scoreb { border:1px solid #cdd5db; background:#fff; border-radius:7px; padding:.25rem .55rem; cursor:pointer;
+      font-size:.85rem; min-width:2.3rem; line-height:1.1; }
+    .scoreb.sel-correct { background:#e8f7ef; border-color:var(--ok); color:var(--accent-dark); font-weight:700; }
+    .scoreb.sel-incorrect { background:#fdecea; border-color:var(--bad); color:var(--bad); font-weight:700; }
+    .scoreb.sel-na { background:#eef1f4; border-color:#9aa6b0; color:#556; font-weight:700; }
+    .esrc { display:flex; flex-wrap:wrap; gap:.4rem .9rem; margin:.4rem 0; }
+    .esrc label { font-size:.85rem; cursor:pointer; }
+    .fidtable { width:100%; border-collapse:collapse; font-size:.8rem; }
+    .fidtable th, .fidtable td { border:1px solid var(--line); padding:.25rem .35rem; text-align:center; }
+    .fidtable th.lbl, .fidtable td.lbl { text-align:left; white-space:nowrap; }
+    .fidtable td.v-correct { color:var(--accent-dark); font-weight:700; }
+    .fidtable td.v-incorrect { color:var(--bad); font-weight:700; }
+    .fidtable td.v-not_applicable { color:#667; }
+    .fidtable td.v-unscored { color:#aab; }
+    .fidwrap { overflow-x:auto; }
+    /* Modal */
+    .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:20; }
+    .modal-bg.show { display:flex; }
+    .modal { background:#fff; border-radius:12px; padding:1.1rem; width:min(520px,92vw); }
+    .hidden { display:none !important; }
+    footer.tip { color:var(--muted); font-size:.82rem; text-align:center; margin-top:1rem; }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <div class="idblock">
+      <span class="pid" id="hdr-pid">participant —</span>
+      <span class="sid" id="hdr-sid"><span class="none">no session yet</span></span>
+    </div>
+    <span class="pill" id="hdr-stage">Setup</span>
+    <span class="pill state-created" id="hdr-state">—</span>
+    <span class="grow"></span>
+    <button class="note-btn" id="btn-note" disabled>＋ Add note</button>
+  </header>
+
+  <div class="wrap">
+    <div class="stepper" id="stepper"></div>
+
+    <!-- STAGE 1: SETUP -->
+    <section id="stage-setup" class="stage">
+      <div class="card">
+        <h2>Setup &amp; Configure</h2>
+        <p class="hint">Create the session here. This screen owns the one canonical session ID used everywhere.</p>
+        <div class="row">
+          <label class="fld"><span>Participant ID</span><input type="text" id="in-pid" placeholder="P001" autocomplete="off"></label>
+          <label class="fld"><span>Session ID</span><input type="text" id="in-sid" placeholder="P001_S1" autocomplete="off"></label>
+        </div>
+        <div class="row">
+          <label class="fld"><span>PB order group</span>
+            <select id="in-group"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+          <label class="fld"><span>Support condition</span>
+            <select id="in-support"><option value="1">supportive</option><option value="0">neutral</option></select></label>
+        </div>
+        <button class="primary" id="btn-create">Create &amp; start session</button>
+        <div class="msg" id="setup-msg"></div>
+      </div>
+      <div class="card">
+        <h2>Pre-session checklist</h2>
+        <p class="hint">You can advance once the session is running; the checklist is your reminder.</p>
+        <ul class="check" id="pre-check"></ul>
+      </div>
+    </section>
+
+    <!-- STAGE 2: ONBOARDING -->
+    <section id="stage-onboarding" class="stage hidden">
+      <div class="card">
+        <h2>Onboarding checklist</h2>
+        <ul class="check" id="onboard-check"></ul>
+      </div>
+      <div class="card">
+        <h2>Pre-questionnaires → tablet</h2>
+        <p class="hint">Push each to the tablet; status updates as the participant submits.</p>
+        <div id="pre-q"></div>
+        <div class="msg" id="preq-msg"></div>
+      </div>
+    </section>
+
+    <!-- STAGE 3: LIVE -->
+    <section id="stage-live" class="stage hidden">
+      <!-- v2: robot launch handoff (canonical config; no manual re-typing) -->
+      <div class="card">
+        <h2>Robot launch <span class="pill" id="launch-status" style="margin-left:.4rem;">—</span></h2>
+        <p class="hint">Hand the platform's canonical session config to the robots and start the interaction. No terminal re-typing.</p>
+        <div class="grid2">
+          <div>
+            <div class="kv"><span>Session ID</span><span id="launch-sid">—</span></div>
+            <div class="kv"><span>Participant</span><span id="launch-pid">—</span></div>
+            <div class="kv"><span>PB order group</span><span id="launch-group">—</span></div>
+            <div class="kv"><span>Support condition</span><span id="launch-support">—</span></div>
+          </div>
+          <div>
+            <div class="kv"><span>Config fetched by robot</span><span id="launch-fetched">—</span></div>
+            <div class="kv"><span>Start requested</span><span id="launch-startreq">—</span></div>
+            <div class="kv"><span>Started</span><span id="launch-started">—</span></div>
+            <div class="kv"><span>Error</span><span id="launch-error">—</span></div>
+          </div>
+        </div>
+        <div style="display:flex; gap:.6rem; flex-wrap:wrap; margin-top:.8rem;">
+          <button class="secondary" id="btn-launch-prepare">Prepare robot launch</button>
+          <button class="primary" id="btn-launch-start" disabled>Start robot interaction</button>
+        </div>
+        <div class="msg" id="launch-msg"></div>
+        <details style="margin-top:.6rem;">
+          <summary style="cursor:pointer; color:var(--muted);">Fallback: manual config for the BST operator</summary>
+          <p class="hint" style="margin:.5rem 0 .3rem;">If robot-side polling isn't connected yet, the BST operator can use these exact values (they match the platform session — do not re-type by hand from memory):</p>
+          <textarea id="launch-fallback" rows="7" readonly style="font-family:ui-monospace,monospace; font-size:.82rem;"></textarea>
+          <button class="secondary" id="btn-launch-copy" style="margin-top:.4rem;">Copy</button>
+        </details>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h2>Progress</h2>
+          <div class="kv"><span>Current phase</span><span class="big" id="live-phase">—</span></div>
+          <div class="kv"><span>Current loop</span><span class="big" id="live-loop">—</span></div>
+          <div class="kv"><span>Gates opened / closed / overridden</span><span id="live-gatecounts">—</span></div>
+          <div class="stale hidden" id="live-stale"></div>
+        </div>
+        <div class="card">
+          <h2>Current gate</h2>
+          <div id="live-gate"><div class="gate-none">No open gate.</div></div>
+          <button class="danger hidden" id="btn-override" style="margin-top:.8rem;">Override current gate</button>
+          <div class="msg" id="override-msg"></div>
+        </div>
+      </div>
+      <div class="grid2">
+        <div class="card">
+          <h2>Status</h2>
+          <div class="kv"><span>Recording</span><span id="stat-rec" class="pill">—</span></div>
+          <div class="kv"><span>Perception</span><span id="stat-perc" class="pill">—</span></div>
+        </div>
+        <div class="card">
+          <h2>Notes</h2>
+          <div class="notelist" id="live-notes">—</div>
+        </div>
+      </div>
+
+      <!-- v3: human fidelity scoring -->
+      <div class="card" id="fidelity-card">
+        <h2>Human fidelity scoring <span class="pill" id="fidelity-overall" style="margin-left:.4rem;">—</span></h2>
+        <p class="hint">Score each loop/SD against the ABA fidelity table. Human scoring only, independent of any machine score. Autosaves; does not gate the robot.</p>
+        <div class="fidloops" id="fidelity-loops"></div>
+        <div id="fidelity-form"></div>
+        <div class="msg" id="fidelity-msg"></div>
+        <details style="margin-top:.6rem;">
+          <summary style="cursor:pointer; color:var(--muted);">Review all loops</summary>
+          <div class="fidwrap" id="fidelity-table" style="margin-top:.6rem;">—</div>
+        </details>
+      </div>
+    </section>
+
+    <!-- STAGE 4: POST -->
+    <section id="stage-post" class="stage hidden">
+      <div class="card">
+        <h2>Post-questionnaires → tablet</h2>
+        <div id="post-q"></div>
+        <div class="msg" id="postq-msg"></div>
+      </div>
+      <div class="card">
+        <h2>Qualitative responses</h2>
+        <label class="fld"><span>Notes (saved to the session record)</span><textarea id="qual-note" rows="3"></textarea></label>
+        <button class="secondary" id="btn-qual">Save qualitative note</button>
+        <div class="msg" id="qual-msg"></div>
+      </div>
+      <div class="card">
+        <h2>Debrief checklist</h2>
+        <ul class="check" id="debrief-check"></ul>
+      </div>
+    </section>
+
+    <!-- STAGE 5: CLOSEOUT -->
+    <section id="stage-closeout" class="stage hidden">
+      <div class="card">
+        <h2>Session completeness <span class="pill" id="completeness-overall">—</span></h2>
+        <p class="hint">Read-only check of what has been captured. Surfaces anything missing while the participant is still here. Stops nothing — fix missing items (e.g. push a post-questionnaire from the Post stage), then re-check.</p>
+        <button class="secondary" id="btn-recheck">Re-check completeness</button>
+        <div id="completeness" style="margin-top:.7rem;">—</div>
+      </div>
+      <div class="card" id="finish-card">
+        <h2>Finish session</h2>
+        <p class="hint">Sessions are UNREPEATABLE. This gracefully stops recording (mp4 trailer written) and perception, re-checks completeness, and finalizes only on your explicit confirmation. Nothing is deleted; any failure is surfaced and the session is not silently completed.</p>
+        <button class="primary" id="btn-finish">Review &amp; finish session…</button>
+        <div class="msg" id="finish-msg"></div>
+        <div id="finish-panel" class="hidden" style="margin-top:.7rem;"></div>
+      </div>
+      <div class="card">
+        <h2>Export</h2>
+        <p class="hint">Read-only: writes the raw dumps + analysis frames + data dictionary to the exports directory.</p>
+        <button class="primary" id="btn-export">Generate export</button>
+        <div class="msg" id="export-msg"></div>
+      </div>
+      <div class="card">
+        <h2>Reset for next participant</h2>
+        <ul class="check" id="reset-check"></ul>
+        <button class="secondary" id="btn-reset">Clear console for next participant</button>
+      </div>
+    </section>
+
+    <footer class="tip">Operator Console v1 · all actions are deliberate · override is the gate safety valve</footer>
+  </div>
+
+  <!-- Note modal -->
+  <div class="modal-bg" id="note-modal">
+    <div class="modal">
+      <h2 style="margin-top:0;">Add note</h2>
+      <textarea id="note-text" rows="3" placeholder="Timestamped note to the session record…"></textarea>
+      <div class="msg" id="note-msg"></div>
+      <div style="display:flex; gap:.6rem; justify-content:flex-end; margin-top:.6rem;">
+        <button class="secondary" id="note-cancel">Cancel</button>
+        <button class="primary" id="note-save">Save note</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// Operator Console v1. Vanilla JS, no framework. Every network call goes through
+// api() which never throws; callers handle {ok,status,data,error} so no failure
+// can crash the page or the running session. The console only issues safe reads
+// plus deliberate operator writes (create session, push forms, note, override,
+// export); it never mutates raw records.
+// ---------------------------------------------------------------------------
+
+const STAGES = ["setup","onboarding","live","post","closeout"];
+const STAGE_LABEL = { setup:"Setup", onboarding:"Onboarding", live:"Live", post:"Post", closeout:"Closeout" };
+
+const S = {
+  pid: null, sid: null, running: false, state: null,
+  stage: "setup", pollTimer: null, qPollTimer: null,
+  fid: null,  // fidelity scoring state: { loop, scores:{loop_index:row}, saveTimer }
+};
+
+// --- tiny helpers -----------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+function setMsg(id, text, kind) { const e=$(id); if(!e) return; e.textContent=text||""; e.className="msg"+(kind?(" "+kind):""); }
+
+async function api(method, path, body) {
+  try {
+    const opt = { method, headers: {} };
+    if (body !== undefined) { opt.headers["Content-Type"]="application/json"; opt.body=JSON.stringify(body); }
+    const r = await fetch(path, opt);
+    let data=null; try { data = await r.json(); } catch(_) {}
+    if (!r.ok) {
+      const detail = (data && (data.detail||data.message)) || (r.status+" "+r.statusText);
+      return { ok:false, status:r.status, error:(typeof detail==="string"?detail:JSON.stringify(detail)) };
+    }
+    return { ok:true, status:r.status, data };
+  } catch (e) {
+    return { ok:false, status:0, error:"network error: "+(e && e.message ? e.message : e) };
+  }
+}
+
+// --- header + stepper -------------------------------------------------------
+function renderHeader() {
+  $("hdr-pid").textContent = "participant " + (S.pid || "—");
+  $("hdr-sid").innerHTML = S.sid ? S.sid : '<span class="none">no session yet</span>';
+  $("hdr-stage").textContent = STAGE_LABEL[S.stage];
+  const st = S.state || "—";
+  const stEl = $("hdr-state"); stEl.textContent = st;
+  stEl.className = "pill state-" + (S.state || "created");
+  $("btn-note").disabled = !S.sid;
+}
+function renderStepper() {
+  const el = $("stepper"); el.innerHTML = "";
+  STAGES.forEach((stg, i) => {
+    const d = document.createElement("div");
+    // Locked only until a session exists. Once started, every stage stays
+    // reachable even after the session is stopped/completed, so the operator can
+    // still collect a missing questionnaire during closeout and re-export.
+    const locked = (stg !== "setup") && !S.sid;
+    d.className = "step" + (S.stage===stg?" active":"") + (locked?" locked":"");
+    d.innerHTML = '<span class="n">Step '+(i+1)+'</span>'+STAGE_LABEL[stg];
+    d.onclick = () => { if (!locked) goStage(stg); };
+    el.appendChild(d);
+  });
+}
+function goStage(stg) {
+  S.stage = stg;
+  STAGES.forEach(x => $("stage-"+x).classList.toggle("hidden", x!==stg));
+  renderHeader(); renderStepper();
+  stopPoll(); stopQPoll();
+  if (stg==="live") { startPoll(); loadFidelity(); }
+  if (stg==="onboarding") loadQuestionnaires("pre","pre-q","preq-msg");
+  if (stg==="post") loadQuestionnaires("post","post-q","postq-msg");
+  if (stg==="closeout") loadCompleteness();
+}
+
+// --- checklists (local UI reminders; not persisted) -------------------------
+function checklist(id, items) {
+  const ul = $(id); ul.innerHTML = "";
+  items.forEach((label, i) => {
+    const li=document.createElement("li");
+    li.innerHTML = '<label><input type="checkbox" id="'+id+'-'+i+'"> '+label+'</label>';
+    ul.appendChild(li);
+  });
+}
+
+// --- Stage 1: setup ---------------------------------------------------------
+$("btn-create").onclick = async () => {
+  const pid=$("in-pid").value.trim(), sid=$("in-sid").value.trim();
+  const group=parseInt($("in-group").value,10), support=parseInt($("in-support").value,10);
+  if (!pid || !sid) { setMsg("setup-msg","Participant ID and Session ID are required.","err"); return; }
+  const btn=$("btn-create"); btn.disabled=true; setMsg("setup-msg","Creating…");
+
+  // 1) participant (409 = already exists is fine)
+  let r = await api("POST","/participants",{participant_id:pid});
+  if (!r.ok && r.status!==409) { setMsg("setup-msg","Participant: "+r.error,"err"); btn.disabled=false; return; }
+
+  // 2) attach a registered protocol if one exists (best effort; keeps trials/exports coherent)
+  let protocol_id = null;
+  const pr = await api("GET","/protocols");
+  if (pr.ok && Array.isArray(pr.data) && pr.data.length) protocol_id = pr.data[0].protocol_id;
+
+  // 3) create session
+  const payload = { session_id:sid, participant_id:pid, scenario_type:"bst_dtt",
+                    pb_order_group:group, support_condition:support };
+  if (protocol_id!=null) payload.protocol_id = protocol_id;
+  r = await api("POST","/sessions",payload);
+  if (!r.ok) { setMsg("setup-msg","Session: "+r.error,"err"); btn.disabled=false; return; }
+
+  // 4) start (generates dtt_loops)
+  r = await api("POST","/sessions/"+encodeURIComponent(sid)+"/start");
+  if (!r.ok) { setMsg("setup-msg","Start: "+r.error,"err"); btn.disabled=false; return; }
+
+  S.pid=pid; S.sid=sid; S.state=r.data.state; S.running=(r.data.state==="running");
+  setMsg("setup-msg","Session created and running. Canonical ID: "+sid+" — use this everywhere.","ok");
+  renderHeader(); renderStepper();
+};
+
+// --- Questionnaire push + status -------------------------------------------
+// Exact registered version per key (from the questionnaire list). The submission
+// status is keyed by (session_id, questionnaire_key, version) with version-string
+// exactness, so we detect against the precise version, not a server-side fallback.
+const Q_VERSION = {};
+
+async function loadQuestionnaires(timepoint, containerId, msgId) {
+  const box=$(containerId); box.innerHTML="Loading…";
+  const r = await api("GET","/questionnaires?timepoint="+timepoint);
+  if (!r.ok) { box.innerHTML=""; setMsg(msgId,"Could not load questionnaires: "+r.error,"err"); return; }
+  const list = r.data || [];
+  if (!list.length) { box.innerHTML='<p class="hint">None registered for '+timepoint+'.</p>'; return; }
+  box.innerHTML="";
+  list.forEach(q => {
+    Q_VERSION[q.questionnaire_key] = q.version;  // remember the exact version
+    const row=document.createElement("div"); row.className="qrow";
+    row.innerHTML = '<span class="qname">'+(q.title||q.questionnaire_key)+' <span class="hint">('+q.questionnaire_key+')</span></span>'
+      + '<span class="pill" id="qstat-'+q.questionnaire_key+'">unknown</span>'
+      + '<button class="secondary" data-key="'+q.questionnaire_key+'">Push</button>';
+    box.appendChild(row);
+    row.querySelector("button").onclick = () => pushQuestionnaire(q.questionnaire_key, msgId);
+  });
+  refreshQStatus(list);
+  startQPoll(list);  // keep polling so status flips to "submitted" when the participant submits on the tablet
+}
+async function pushQuestionnaire(key, msgId) {
+  if (!S.sid) { setMsg(msgId,"No session.","err"); return; }
+  const r = await api("POST","/tablet/push",{form_type:"questionnaire",session_id:S.sid,questionnaire_key:key});
+  if (!r.ok) { setMsg(msgId,"Push failed ("+key+"): "+r.error,"err"); return; }
+  setMsg(msgId,"Pushed "+key+" to tablet.","ok");
+  setQStatus(key);
+}
+async function setQStatus(key) {
+  // Query the EXACT (key, version); finalized === a submitted (non-draft) response exists.
+  const v = Q_VERSION[key];
+  const path = "/sessions/"+encodeURIComponent(S.sid)+"/questionnaires/"+encodeURIComponent(key)+"/responses"
+    + (v ? ("?version="+encodeURIComponent(v)) : "");
+  const r = await api("GET", path);
+  const el=$("qstat-"+key); if(!el) return;
+  if (!r.ok) { el.textContent="unknown"; el.className="pill"; return; }
+  const done = !!(r.data && r.data.finalized);   // finalized = submitted, not a draft
+  el.textContent = done ? "submitted" : "pending";
+  el.className = "pill " + (done ? "ok" : "warn");
+}
+function refreshQStatus(list){ (list||[]).forEach(q => setQStatus(q.questionnaire_key)); }
+// Poll questionnaire status on Stage 2/4 so a submit made on the tablet flips the
+// pill without the operator re-navigating. Stopped on stage change (goStage).
+function stopQPoll(){ if(S.qPollTimer){ clearInterval(S.qPollTimer); S.qPollTimer=null; } }
+function startQPoll(list){ stopQPoll(); S.qPollTimer=setInterval(()=>refreshQStatus(list), 2500); }
+
+// --- Stage 3: live polling --------------------------------------------------
+function stopPoll(){ if(S.pollTimer){ clearInterval(S.pollTimer); S.pollTimer=null; } }
+function startPoll(){ stopPoll(); refreshLive(); S.pollTimer=setInterval(refreshLive, 2000); }
+
+async function refreshLive() {
+  if (!S.sid) return;
+  // session state (keep header honest)
+  const sr = await api("GET","/sessions/"+encodeURIComponent(S.sid));
+  if (sr.ok) { S.state=sr.data.state; S.running=(S.state==="running"); renderHeader(); }
+
+  // gates -> progress + open gate
+  const gr = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/sync/gates");
+  if (gr.ok) {
+    $("live-stale").classList.add("hidden");
+    renderGates(gr.data || []);
+  } else {
+    const st=$("live-stale"); st.classList.remove("hidden"); st.textContent="gate data unavailable ("+gr.error+") — retrying…";
+  }
+  // status
+  refreshStatus();
+  // notes
+  refreshNotes();
+  // v2 launch handoff
+  refreshLaunch();
+}
+
+// --- v2: robot launch handoff ----------------------------------------------
+function stampOrDash(v){ return v ? v.replace("T"," ").slice(0,19) : "—"; }
+async function refreshLaunch() {
+  if (!S.sid) return;
+  // canonical config (also drives the fallback block)
+  const cr = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/launch/config");
+  if (cr.ok) {
+    const c = cr.data;
+    $("launch-sid").textContent = c.session_id;
+    $("launch-pid").textContent = c.participant_id;
+    $("launch-group").textContent = (c.pb_order_group!=null? c.pb_order_group : "—");
+    $("launch-support").textContent = (c.support_condition!=null? (c.support_condition+(c.support_label? " ("+c.support_label+")":"")) : "—");
+    $("launch-fallback").value =
+      "# Platform is the single source of truth — use these exact values.\n" +
+      "session_id="+c.session_id+"\n" +
+      "participant_id="+c.participant_id+"\n" +
+      "configuration="+(c.pb_order_group!=null?c.pb_order_group:"")+"      # = pb_order_group\n" +
+      "trainer_feedback_style="+(c.support_label||"")+"   # support_condition "+(c.support_condition)+"\n" +
+      "platform_base="+c.platform_base+"\n" +
+      "# Robot config endpoint: "+c.platform_base+"/sessions/"+c.session_id+"/launch/config";
+  }
+  // launch state
+  const s = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/launch/status");
+  const pill=$("launch-status");
+  if (!s.ok) { pill.textContent="unavailable"; pill.className="pill warn"; return; }
+  const d = s.data, st = d.status || "none";
+  pill.textContent = st.replace("_"," ");
+  pill.className = "pill " + (st==="started"?"ok" : st==="error"?"bad" : st==="none"?"" : "warn");
+  $("launch-fetched").textContent = stampOrDash(d.config_fetched_at);
+  $("launch-startreq").textContent = stampOrDash(d.start_requested_at);
+  $("launch-started").textContent = stampOrDash(d.started_at);
+  $("launch-error").textContent = d.error_text ? d.error_text : "—";
+  // Start only when a valid running session exists
+  $("btn-launch-start").disabled = !S.running;
+}
+$("btn-launch-prepare").onclick = async () => {
+  if (!S.sid) return;
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/launch/prepare");
+  if (!r.ok) { setMsg("launch-msg","Prepare failed: "+r.error,"err"); return; }
+  setMsg("launch-msg","Launch config prepared. Robots can fetch it now.","ok");
+  refreshLaunch();
+};
+$("btn-launch-start").onclick = async () => {
+  if (!S.sid) return;
+  if (!confirm("Send the start signal to the robots for session "+S.sid+"?")) return;
+  const btn=$("btn-launch-start"); btn.disabled=true;
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/launch/start");
+  btn.disabled=false;
+  if (!r.ok) { setMsg("launch-msg","Start failed: "+r.error,"err"); return; }
+  setMsg("launch-msg","Start requested — waiting for the robots to acknowledge.","ok");
+  refreshLaunch();
+};
+$("btn-launch-copy").onclick = async () => {
+  const t=$("launch-fallback"); t.select();
+  try { await navigator.clipboard.writeText(t.value); setMsg("launch-msg","Fallback config copied.","ok"); }
+  catch(_) { document.execCommand && document.execCommand("copy"); setMsg("launch-msg","Selected — press Ctrl/Cmd+C to copy.",""); }
+};
+
+let CURRENT_OPEN_GATE = null;
+function phaseForGate(g){ if(g.scope==="stage") return g.stage_key; return g.checkpoint==="post_kid_response"?"rehearsal":"feedback"; }
+function renderGates(gates) {
+  const opened=gates.length, closed=gates.filter(g=>g.status==="closed").length,
+        overridden=gates.filter(g=>g.closed_by==="override").length;
+  $("live-gatecounts").textContent = opened+" / "+closed+" / "+overridden;
+
+  // current phase/loop from the most recent gate (max gate_id = last element, since ordered)
+  const latest = gates.length ? gates[gates.length-1] : null;
+  $("live-phase").textContent = latest ? phaseForGate(latest) : "(awaiting first gate)";
+  $("live-loop").textContent  = latest ? (latest.scope==="loop" ? latest.loop_index : "—") : "—";
+
+  // open gate (latest open one)
+  const open = gates.filter(g=>g.status==="open");
+  const g = open.length ? open[open.length-1] : null;
+  CURRENT_OPEN_GATE = g;
+  const box=$("live-gate"), btn=$("btn-override");
+  if (!g) {
+    box.innerHTML='<div class="gate-none">No open gate — nothing is waiting.</div>';
+    btn.classList.add("hidden");
+  } else {
+    const where = g.scope==="stage" ? ("stage · "+g.stage_key) : ("loop "+g.loop_index);
+    box.innerHTML = '<div class="gate-open"><div>'+where+' · <b>'+g.checkpoint+'</b></div></div>';
+    btn.classList.remove("hidden");
+  }
+}
+
+$("btn-override").onclick = async () => {
+  const g = CURRENT_OPEN_GATE;
+  if (!g) { setMsg("override-msg","No open gate to override.","err"); return; }
+  const where = g.scope==="stage" ? ("stage "+g.stage_key) : ("loop "+g.loop_index);
+  if (!confirm("Override the open gate ("+where+" · "+g.checkpoint+")?\nThis releases the robot WITHOUT a self-report and is recorded as a skip-by-override.")) return;
+  const reason = prompt("Reason (optional, saved to the record):","") || null;
+  const btn=$("btn-override"); btn.disabled=true;
+  const body = { scope:g.scope, checkpoint:g.checkpoint, operator:"console", reason };
+  if (g.scope==="stage") body.stage=g.stage_key; else body.loop_index=g.loop_index;
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/sync/override",body);
+  btn.disabled=false;
+  if (!r.ok) { setMsg("override-msg","Override failed: "+r.error,"err"); return; }
+  setMsg("override-msg","Gate "+r.data.gate_key+" overridden — robot will proceed.","ok");
+  refreshLive();
+};
+
+async function refreshStatus() {
+  // Guard against overlap: refreshLive fires every 2s and calls this without
+  // awaiting it. If any status call (e.g. the perception summary) ever runs
+  // slower than the tick, un-guarded calls would stack up, each holding a DB
+  // connection, exhaust the pool, and delay the tablet form push. Skip a tick
+  // rather than pile on; the next tick picks up fresh state.
+  if (S._statusInFlight) return;
+  S._statusInFlight = true;
+  try {
+  // recording
+  const rr = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/recordings");
+  const rp=$("stat-rec");
+  if (!rr.ok) { rp.textContent="unavailable"; rp.className="pill warn"; }
+  else if (!rr.data.length) { rp.textContent="none"; rp.className="pill"; }
+  else {
+    const last=rr.data[rr.data.length-1];
+    const good = last.status==="recording" || last.status==="completed";
+    rp.textContent=last.status; rp.className="pill "+(last.status==="recording"?"ok":(good?"":"bad"));
+    if (last.status==="recording") rp.className="pill ok";
+    else if (last.status==="failed"||last.status==="interrupted") rp.className="pill bad";
+    else rp.className="pill";
+  }
+  // perception
+  const pr = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/perception-events/summary");
+  const pp=$("stat-perc");
+  if (!pr.ok) { pp.textContent="unavailable"; pp.className="pill warn"; return; }
+  const tasks=pr.data.tasks||{}; const vals=Object.values(tasks);
+  const total=vals.reduce((a,t)=>a+(t.count||0),0);
+  const anyOk=vals.some(t=>t.latest_connection_status==="ok");
+  const anyDown=vals.some(t=>t.latest_connection_status==="down");
+  if (total===0){ pp.textContent="no data yet"; pp.className="pill"; }
+  else if (anyDown && !anyOk){ pp.textContent="down"; pp.className="pill bad"; }
+  else if (anyDown){ pp.textContent="degraded"; pp.className="pill warn"; }
+  else if (anyOk){ pp.textContent="healthy"; pp.className="pill ok"; }
+  else { pp.textContent="idle"; pp.className="pill"; }
+  } finally {
+    S._statusInFlight = false;
+  }
+}
+
+async function refreshNotes() {
+  const r = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/notes");
+  const box=$("live-notes"); if(!r.ok){ box.textContent="notes unavailable"; return; }
+  const notes=r.data||[]; if(!notes.length){ box.textContent="No notes yet."; return; }
+  box.innerHTML = notes.slice(-12).reverse().map(n =>
+    '<div class="n">'+(n.timestamp_utc||"").replace("T"," ").slice(0,19)+' — '+escapeHtml(n.text)+'</div>').join("");
+}
+function escapeHtml(s){ return (s||"").replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// --- Stage 3: human fidelity scoring (v3) ----------------------------------
+// One score row per (session, loop_index) for SD1..SD6. Human scoring only;
+// nothing here shows or depends on any automated score, and it never gates the
+// robot. Ratings autosave (debounced PUT); "complete" flips per-loop status.
+const FIDELITY_FIELDS = [
+  ["delivered_target","Delivered this target?"],
+  ["sd_delivered_as_written","SD delivered as written"],
+  ["sd_timing","SD timing"],
+  ["primary_rplus_delivery","Primary R+ delivery"],
+  ["primary_rplus_timing","Primary R+ timing"],
+  ["ec_prompting_delivery","EC prompting delivery"],
+  ["ec_prompting_timing","EC prompting timing"],
+  ["ec_hp_delivery","EC HP delivery"],
+  ["ec_hp_timing","EC HP timing"],
+  ["ec_rplus_delivery","EC R+ delivery"],
+  ["ec_rplus_timing","EC R+ timing"],
+  ["initial_sd_delivery","Initial SD delivery"],
+  ["initial_sd_timing","Initial SD timing"],
+  ["final_rplus_delivery","Final R+ delivery"],
+  ["final_rplus_timing","Final R+ timing"],
+];
+const FIDELITY_ERROR_SOURCES = ["interaction_flow","ordering","timing","latency","wrong_item","sd_delivery","prompting","reinforcement","error_correction","other"];
+const SCORE_OPTS = [["correct","✓"],["incorrect","✗"],["not_applicable","N/A"]];
+
+function blankFidRow(loop){
+  const r = { loop_index:loop, status:"unscored", error_sources:[], notes:"" };
+  FIDELITY_FIELDS.forEach(([k])=> r[k]="unscored");
+  return r;
+}
+function fidRow(loop){ return (S.fid && S.fid.scores[loop]) || blankFidRow(loop); }
+function statusOf(loop){ const r = S.fid && S.fid.scores[loop]; return r ? r.status : "unscored"; }
+
+async function loadFidelity(){
+  if(!S.sid) return;
+  S.fid = S.fid || { loop:1, scores:{}, saveTimer:null };
+  const r = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/fidelity-scores");
+  const scores = {};
+  if(r.ok){ (r.data||[]).forEach(row => scores[row.loop_index]=row); }
+  S.fid.scores = scores;
+  if(!S.fid.loop) S.fid.loop = 1;
+  renderFidLoops(); renderFidForm(); renderFidTable(); renderFidOverall();
+}
+
+function renderFidOverall(){
+  let complete=0; for(let l=1;l<=6;l++){ if(statusOf(l)==="complete") complete++; }
+  const el=$("fidelity-overall"); el.textContent = complete+"/6 complete";
+  el.className = "pill" + (complete===6?" ok":(complete>0?" warn":""));
+}
+
+function renderFidLoops(){
+  const box=$("fidelity-loops"); box.innerHTML="";
+  for(let l=1;l<=6;l++){
+    const st=statusOf(l);
+    const d=document.createElement("div");
+    d.className="fidloop"+(S.fid.loop===l?" active":"")+(st==="draft"?" st-draft":(st==="complete"?" st-complete":""));
+    d.innerHTML='<span class="dot"></span>SD'+l;
+    d.onclick=()=>{ S.fid.loop=l; renderFidLoops(); renderFidForm(); };
+    box.appendChild(d);
+  }
+}
+
+function renderFidForm(){
+  const loop=S.fid.loop, row=fidRow(loop), box=$("fidelity-form");
+  const meta = row.function_class ? (' · '+row.function_class+(row.sd_id?(' · '+row.sd_id):'')) : '';
+  let html='<div style="display:flex;justify-content:space-between;align-items:center;margin:.2rem 0 .5rem;">'
+    +'<b>SD'+loop+meta+'</b>'
+    +'<span class="pill '+(row.status==="complete"?"ok":(row.status==="draft"?"warn":""))+'">'+row.status+'</span></div>';
+  FIDELITY_FIELDS.forEach(([key,label])=>{
+    const val=row[key]||"unscored";
+    html+='<div class="fidrow"><span class="lbl">'+label+'</span><span class="scorebtns">';
+    SCORE_OPTS.forEach(([v,glyph])=>{
+      const sel = val===v ? (" sel-"+(v==="not_applicable"?"na":v)) : "";
+      html+='<button class="scoreb'+sel+'" data-k="'+key+'" data-v="'+v+'">'+glyph+'</button>';
+    });
+    html+='</span></div>';
+  });
+  html+='<div style="margin-top:.7rem;"><span style="font-size:.85rem;color:var(--muted);">Error source(s)</span><div class="esrc">';
+  FIDELITY_ERROR_SOURCES.forEach(es=>{
+    const on=(row.error_sources||[]).includes(es);
+    html+='<label><input type="checkbox" data-es="'+es+'"'+(on?" checked":"")+'> '+es+'</label>';
+  });
+  html+='</div></div>';
+  html+='<label class="fld"><span>Notes</span><textarea id="fid-notes" rows="2">'+escapeHtml(row.notes||"")+'</textarea></label>';
+  html+='<div style="display:flex;gap:.6rem;margin-top:.5rem;"><button class="primary" id="fid-complete">Mark SD'+loop+' complete</button></div>';
+  box.innerHTML=html;
+
+  box.querySelectorAll(".scoreb").forEach(b=>{
+    b.onclick=()=>{
+      const k=b.getAttribute("data-k"), v=b.getAttribute("data-v");
+      const next = (fidRow(loop)[k]===v) ? "unscored" : v;  // click selected value again = clear
+      updateFidField(loop, {[k]:next});
+    };
+  });
+  box.querySelectorAll("input[data-es]").forEach(cb=>{
+    cb.onclick=()=>{
+      const chosen=[...box.querySelectorAll("input[data-es]:checked")].map(x=>x.getAttribute("data-es"));
+      updateFidField(loop, {error_sources:chosen});
+    };
+  });
+  const notes=$("fid-notes");
+  if(notes) notes.oninput=()=>{ updateFidLocal(loop,{notes:notes.value}); scheduleFidSave(loop); };
+  const cbtn=$("fid-complete");
+  if(cbtn) cbtn.onclick=()=>completeFid(loop);
+}
+
+// Merge into the local row (no re-render) — used while typing notes.
+function updateFidLocal(loop, patch){
+  const row = S.fid.scores[loop] || blankFidRow(loop);
+  Object.assign(row, patch);
+  S.fid.scores[loop]=row;
+}
+// Merge + re-render the form + autosave — used for button/checkbox toggles.
+function updateFidField(loop, patch){ updateFidLocal(loop, patch); renderFidForm(); scheduleFidSave(loop); }
+
+function fidPayload(loop){
+  const row=fidRow(loop);
+  const p={ error_sources: row.error_sources||[], notes: (row.notes||"")||null };
+  FIDELITY_FIELDS.forEach(([k])=> p[k]=row[k]||"unscored");
+  return p;  // status omitted: autosave never demotes a completed loop
+}
+
+function scheduleFidSave(loop){
+  if(S.fid.saveTimer) clearTimeout(S.fid.saveTimer);
+  S.fid.saveTimer=setTimeout(()=>saveFid(loop), 500);
+}
+
+async function saveFid(loop){
+  if(!S.sid) return;
+  const r=await api("PUT","/sessions/"+encodeURIComponent(S.sid)+"/fidelity-scores/"+loop, fidPayload(loop));
+  if(!r.ok){ setMsg("fidelity-msg","Save failed (SD"+loop+"): "+r.error,"err"); return; }
+  S.fid.scores[loop]=r.data;
+  setMsg("fidelity-msg","SD"+loop+" saved.","ok");
+  renderFidLoops(); renderFidOverall(); renderFidTable();
+  if(S.fid.loop===loop){ const pill=$("fidelity-form").querySelector(".pill"); if(pill){ pill.textContent=r.data.status; pill.className="pill "+(r.data.status==="complete"?"ok":"warn"); } }
+}
+
+async function completeFid(loop){
+  if(!S.sid) return;
+  if(S.fid.saveTimer) clearTimeout(S.fid.saveTimer);
+  const s=await api("PUT","/sessions/"+encodeURIComponent(S.sid)+"/fidelity-scores/"+loop, fidPayload(loop));
+  if(!s.ok){ setMsg("fidelity-msg","Save failed (SD"+loop+"): "+s.error,"err"); return; }
+  const c=await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/fidelity-scores/"+loop+"/complete");
+  if(!c.ok){ setMsg("fidelity-msg","Complete failed (SD"+loop+"): "+c.error,"err"); return; }
+  S.fid.scores[loop]=c.data;
+  setMsg("fidelity-msg","SD"+loop+" marked complete.","ok");
+  renderFidLoops(); renderFidForm(); renderFidOverall(); renderFidTable();
+}
+
+function renderFidTable(){
+  const box=$("fidelity-table");
+  const glyph={correct:"✓",incorrect:"✗",not_applicable:"N/A",unscored:"·"};
+  let h='<table class="fidtable"><tr><th class="lbl">Field</th>';
+  for(let l=1;l<=6;l++) h+='<th>SD'+l+'</th>';
+  h+='</tr>';
+  FIDELITY_FIELDS.forEach(([key,label])=>{
+    h+='<tr><td class="lbl">'+label+'</td>';
+    for(let l=1;l<=6;l++){ const v=fidRow(l)[key]||"unscored"; h+='<td class="v-'+v+'">'+glyph[v]+'</td>'; }
+    h+='</tr>';
+  });
+  h+='<tr><td class="lbl">Status</td>';
+  for(let l=1;l<=6;l++) h+='<td>'+statusOf(l)+'</td>';
+  h+='</tr></table>';
+  box.innerHTML=h;
+}
+
+// --- notes modal ------------------------------------------------------------
+$("btn-note").onclick = () => { if(!S.sid) return; setMsg("note-msg",""); $("note-text").value=""; $("note-modal").classList.add("show"); };
+$("note-cancel").onclick = () => $("note-modal").classList.remove("show");
+$("note-save").onclick = async () => {
+  const text=$("note-text").value.trim(); if(!text){ setMsg("note-msg","Empty note.","err"); return; }
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/notes",{text});
+  if(!r.ok){ setMsg("note-msg","Save failed: "+r.error,"err"); return; }
+  $("note-modal").classList.remove("show");
+  if (S.stage==="live") refreshNotes();
+};
+
+// --- Stage 4: qualitative note ---------------------------------------------
+$("btn-qual").onclick = async () => {
+  const text=$("qual-note").value.trim(); if(!text){ setMsg("qual-msg","Empty.","err"); return; }
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/notes",{text:"[qualitative] "+text});
+  if(!r.ok){ setMsg("qual-msg","Save failed: "+r.error,"err"); return; }
+  $("qual-note").value=""; setMsg("qual-msg","Saved to session record.","ok");
+};
+
+// --- Stage 5: closeout — completeness + finish flow -------------------------
+function kv(k,v){ return '<div class="kv"><span>'+k+'</span><span>'+v+'</span></div>'; }
+
+// Render the read-only completeness report (shared by the completeness card and
+// the finish-flow preflight panel).
+function renderCompleteness(rep){
+  const sr=rep.self_reports, q=rep.questionnaires, rec=rep.recording;
+  const qline = t => (q[t]||[]).length
+    ? (q[t]||[]).map(x=>escapeHtml(x.key)+(x.submitted?' ✓':' ✗ missing')).join('  ·  ')
+    : '—';
+  let srVal = sr.collected+' / '+sr.expected+' collected';
+  if(sr.overridden) srVal += ' · '+sr.overridden+' overridden';
+  if(sr.open)       srVal += ' · '+sr.open+' open';
+  if(sr.not_fired)  srVal += ' · '+sr.not_fired+' not reached';
+  let h = kv("Gated self-reports", srVal)
+        + kv("Pre-questionnaires", qline('pre'))
+        + kv("Post-questionnaires", qline('post'))
+        + kv("DTT trials", rep.trials.count)
+        + kv("Recording", escapeHtml(rec.status)+(rec.ok?' ✓':' ⚠'+(rec.error_text?(' — '+escapeHtml(rec.error_text)):'')))
+        + kv("Session state", escapeHtml(rep.state));
+  if(rep.warnings && rep.warnings.length){
+    h += '<div style="margin-top:.6rem;color:var(--bad);"><b>Needs attention (act while the participant is here):</b>'
+       + '<ul style="margin:.3rem 0 0 1.1rem;">'+rep.warnings.map(w=>'<li>'+escapeHtml(w)+'</li>').join('')+'</ul></div>';
+  } else {
+    h += '<div style="margin-top:.6rem;color:var(--ok);"><b>All expected data captured.</b></div>';
+  }
+  return h;
+}
+
+async function loadCompleteness(){
+  const box=$("completeness"); if(!S.sid){ box.textContent="No session."; return; }
+  box.textContent="Checking…";
+  const r=await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/finish-readiness");
+  const ov=$("completeness-overall");
+  if(!r.ok){ box.textContent="Unavailable: "+r.error; ov.textContent="?"; ov.className="pill warn"; return; }
+  box.innerHTML=renderCompleteness(r.data);
+  ov.textContent = r.data.ready ? "ready" : (r.data.warnings.length+" to review");
+  ov.className = "pill "+(r.data.ready?"ok":"warn");
+  return r.data;
+}
+$("btn-recheck").onclick = loadCompleteness;
+
+// The finish flow: preflight (stop recording+perception, re-check) -> explicit
+// confirm -> finalize (complete + export). Every failure is surfaced and never
+// silently marks the session complete.
+$("btn-finish").onclick = runFinishPreflight;
+
+async function runFinishPreflight(){
+  if(!S.sid){ setMsg("finish-msg","No session.","err"); return; }
+  const btn=$("btn-finish"); btn.disabled=true; setMsg("finish-msg","");
+  const panel=$("finish-panel"); panel.classList.remove("hidden");
+  panel.innerHTML="<p class='hint'>Stopping recording and perception, then checking completeness…</p>";
+
+  const sres = await api("GET","/sessions/"+encodeURIComponent(S.sid));
+  const state = sres.ok ? sres.data.state : null;
+
+  if(state==="completed"){
+    const rep = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/finish-readiness");
+    panel.innerHTML = (rep.ok?renderCompleteness(rep.data):"")
+      + "<div style='margin-top:.6rem;color:var(--ok)'><b>This session is already finalized.</b></div>"
+      + '<button class="secondary" id="btn-finish-reexport" style="margin-top:.6rem;">Re-generate export</button>';
+    $("btn-finish-reexport").onclick=runReexport; btn.disabled=false; return;
+  }
+
+  // Step 1: graceful stop (recording -> completed via q-to-stdin; perception stops too)
+  if(state==="running" || state==="paused"){
+    const stop = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/stop");
+    if(!stop.ok){
+      panel.innerHTML="<div style='color:var(--bad)'><b>Stop failed:</b> "+escapeHtml(stop.error)
+        +"<br>Recording may still be running. The session was NOT finalized. Resolve and retry.</div>"
+        +'<button class="secondary" id="btn-finish-retry" style="margin-top:.6rem;">Retry</button>';
+      $("btn-finish-retry").onclick=runFinishPreflight; btn.disabled=false; return;
+    }
+    S.state="stopped"; S.running=false; renderHeader(); renderStepper();
+  }
+
+  // Step 2: authoritative completeness check (includes final recording status)
+  const r=await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/finish-readiness");
+  if(!r.ok){
+    panel.innerHTML="<div style='color:var(--bad)'>Completeness check failed: "+escapeHtml(r.error)
+      +". The session was NOT finalized. Retry.</div>"
+      +'<button class="secondary" id="btn-finish-retry" style="margin-top:.6rem;">Retry</button>';
+    $("btn-finish-retry").onclick=runFinishPreflight; btn.disabled=false; return;
+  }
+  const rep=r.data;
+  $("completeness").innerHTML=renderCompleteness(rep);  // keep the top card in sync
+  const ov=$("completeness-overall"); ov.textContent=rep.ready?"ready":(rep.warnings.length+" to review"); ov.className="pill "+(rep.ready?"ok":"warn");
+
+  // Step 3: show summary + explicit confirm / cancel BEFORE finalizing
+  let h = renderCompleteness(rep);
+  h += '<div style="display:flex;gap:.6rem;margin-top:.9rem;flex-wrap:wrap;">';
+  h += rep.ready
+    ? '<button class="primary" id="btn-finish-confirm">Confirm &amp; finalize session</button>'
+    : '<button class="danger" id="btn-finish-confirm">Finalize anyway (issues above)</button>';
+  h += '<button class="secondary" id="btn-finish-cancel">Cancel — go back and fix</button>';
+  h += '</div>';
+  panel.innerHTML=h;
+  $("btn-finish-confirm").onclick=()=>runFinalize();
+  $("btn-finish-cancel").onclick=()=>{
+    panel.classList.add("hidden"); panel.innerHTML="";
+    setMsg("finish-msg","Finish cancelled. Recording is stopped; collect any missing items (Post stage), then finish again.","");
+    btn.disabled=false;
+  };
+  btn.disabled=false;
+}
+
+async function runFinalize(){
+  const panel=$("finish-panel");
+  panel.innerHTML="<p class='hint'>Finalizing: completing session, backing up, exporting…</p>";
+
+  // Step 4: complete (stopped -> completed). The completion DB backup runs here.
+  const comp=await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/complete");
+  if(!comp.ok){
+    panel.innerHTML="<div style='color:var(--bad)'><b>Complete failed:</b> "+escapeHtml(comp.error)
+      +"<br>The session was NOT marked complete. Resolve and retry.</div>"
+      +'<button class="secondary" id="btn-finish-retry" style="margin-top:.6rem;">Back to review</button>';
+    $("btn-finish-retry").onclick=runFinishPreflight; return;
+  }
+  S.state="completed"; S.running=false; renderHeader(); renderStepper();
+
+  // Step 5: full export (raw dumps + analysis frames + data dictionary)
+  const exp=await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/export");
+  if(!exp.ok){
+    panel.innerHTML="<div style='color:var(--warn)'><b>Session is complete and backed up</b>, but the export failed: "
+      +escapeHtml(exp.error)+"<br>Your data is safe (a completion backup was taken). Retry the export.</div>"
+      +'<button class="primary" id="btn-finish-reexport" style="margin-top:.6rem;">Retry export</button>';
+    $("btn-finish-reexport").onclick=runReexport; return;
+  }
+  renderFinishDone(exp.data);
+}
+
+async function runReexport(){
+  const panel=$("finish-panel");
+  panel.innerHTML="<p class='hint'>Exporting…</p>";
+  const exp=await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/export");
+  if(!exp.ok){
+    panel.innerHTML="<div style='color:var(--bad)'>Export still failing: "+escapeHtml(exp.error)+"</div>"
+      +'<button class="primary" id="btn-finish-reexport" style="margin-top:.6rem;">Retry export</button>';
+    $("btn-finish-reexport").onclick=runReexport; return;
+  }
+  renderFinishDone(exp.data);
+}
+
+function renderFinishDone(expData){
+  const panel=$("finish-panel");
+  panel.innerHTML =
+    '<div style="border:2px solid var(--ok); background:#e8f7ef; border-radius:10px; padding:.9rem 1rem;">'
+    + '<h3 style="margin:.1rem 0 .5rem;">✓ Session finished</h3>'
+    + kv("State","completed")
+    + kv("Files exported", (expData.files?expData.files.length:"?"))
+    + '<div class="kv"><span>Export location</span><span style="word-break:break-all; text-align:right;">'+escapeHtml(expData.export_dir||"?")+'</span></div>'
+    + '<div class="hint" style="margin-top:.5rem;">A completion backup of the database was taken automatically. Nothing was deleted.</div>'
+    + '</div>';
+  setMsg("finish-msg","Session complete and exported.","ok");
+  loadCompleteness();
+}
+
+$("btn-export").onclick = async () => {
+  const btn=$("btn-export"); btn.disabled=true; setMsg("export-msg","Generating export…");
+  const r = await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/export");
+  btn.disabled=false;
+  if(!r.ok){ setMsg("export-msg","Export failed: "+r.error,"err"); return; }
+  setMsg("export-msg","Export complete: "+(r.data.files?r.data.files.length:"?")+" files → "+r.data.export_dir,"ok");
+};
+
+$("btn-reset").onclick = () => {
+  if(!confirm("Clear the console for the next participant? (The session and its data stay saved on the platform.)")) return;
+  stopPoll(); stopQPoll();
+  S.pid=S.sid=S.state=null; S.running=false; S.stage="setup";
+  $("in-pid").value=$("in-sid").value=""; setMsg("setup-msg","");
+  initChecklists();
+  goStage("setup"); renderHeader(); renderStepper();
+};
+
+// --- init -------------------------------------------------------------------
+function initChecklists() {
+  checklist("pre-check", ["Study area set up","Robot program loaded","Perception platform running","Connections established"]);
+  checklist("onboard-check", ["Consent completed","Media-recording consent captured","Briefing read to participant"]);
+  checklist("debrief-check", ["Participant debriefed","Questions answered","Compensation handled"]);
+  checklist("reset-check", ["Recording offloaded / confirmed saved","Export generated","Tablet reset to idle","Area reset"]);
+}
+initChecklists();
+goStage("setup");
+renderHeader();
+renderStepper();
+</script>
+</body>
+</html>

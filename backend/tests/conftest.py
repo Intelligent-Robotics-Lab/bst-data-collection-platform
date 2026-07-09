@@ -11,11 +11,21 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import settings
 from app.db.session import get_db
 from app.main import app
 from app.models import Base
 from app.services.protocol import register_protocols
 from app.services.questionnaire import register_questionnaires
+
+
+@pytest.fixture(autouse=True)
+def _recording_off_by_default(monkeypatch):
+    """Insulate tests from the developer's .env: recording is OFF unless a test
+    explicitly enables it (the recording lifecycle tests monkeypatch it on).
+    Without this, setting RECORDING_ENABLED=true in .env would make every session
+    start spawn real ffmpeg during the test run."""
+    monkeypatch.setattr(settings, "RECORDING_ENABLED", False, raising=False)
 
 
 @pytest.fixture

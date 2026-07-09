@@ -46,8 +46,13 @@ def test_config_render_spec(client, questionnaires):
     assert item["item_id"] == "erq_01"
     assert item["type"] == "likert"
     assert item["scale"]["min"] == 1 and item["scale"]["max"] == 7
-    # No copyrighted text: placeholder wording only.
-    assert "placeholder" in item["text"].lower()
+    # Order is load-bearing (items 1 & 3 define terms later items use): the
+    # render spec is in index order 1..10.
+    assert [it["index"] for it in cfg["items"]] == list(range(1, 11))
+    # Item text is a string; the verbatim (copyrighted) wording, when present,
+    # is merged from the gitignored local file, so it is never asserted here
+    # (keeps the test independent of local files / copyrighted text).
+    assert isinstance(item["text"], str)
 
 
 def test_unknown_questionnaire_config_is_404(client, questionnaires):
@@ -140,19 +145,25 @@ def test_demographics_mixed_types_validate(client, questionnaires):
     # bad single_choice option
     r = client.post(
         f"/sessions/{sid}/questionnaires/demographics/autosave",
-        json={"answers": {"dem_gender": "robot"}},
+        json={"answers": {"dem_fluent_english": "robot"}},
     )
     assert r.status_code == 422 and "valid" in r.json()["detail"]
-    # integer out of range
+    # integer out of range (dem_age max is 120)
     r = client.post(
         f"/sessions/{sid}/questionnaires/demographics/autosave",
-        json={"answers": {"dem_age": 5}},
+        json={"answers": {"dem_age": 200}},
     )
     assert r.status_code == 422
-    # good mixed answers
+    # multi_choice expects a list, not a scalar
     r = client.post(
         f"/sessions/{sid}/questionnaires/demographics/autosave",
-        json={"answers": {"dem_age": 34, "dem_gender": "woman", "dem_baseline_confidence": 6}},
+        json={"answers": {"dem_gender_identity": "woman"}},
+    )
+    assert r.status_code == 422
+    # good mixed answers (integer + multi_choice + single_choice)
+    r = client.post(
+        f"/sessions/{sid}/questionnaires/demographics/autosave",
+        json={"answers": {"dem_age": 34, "dem_gender_identity": ["woman"], "dem_familiarity": "high"}},
     )
     assert r.status_code == 200, r.text
 

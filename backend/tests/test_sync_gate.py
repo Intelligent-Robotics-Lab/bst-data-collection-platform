@@ -127,6 +127,35 @@ def test_keying_is_independent_across_loops_and_checkpoints(client, protocol_id)
     assert nf["proceed"] is True and nf["gate_found"] is False
 
 
+def test_list_gates_returns_open_and_closed(client, protocol_id):
+    # The operator console reads this to derive current phase/loop + the open gate.
+    sid = _session(client, protocol_id)
+    assert client.get(f"/sessions/{sid}/sync/gates").json() == []  # none yet
+    client.post(f"/sessions/{sid}/sync/stage-complete", json={"stage": "tutorial"})
+    client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 2})
+    client.post(
+        f"/sessions/{sid}/self-reports",
+        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline"},
+    )
+    # poll closes the tutorial baseline gate via the matching self-report
+    client.get(
+        f"/sessions/{sid}/sync/go-ahead",
+        params={"scope": "stage", "stage": "tutorial", "checkpoint": "baseline"},
+    )
+    gates = client.get(f"/sessions/{sid}/sync/gates").json()
+    by_key = {g["gate_key"]: g for g in gates}
+    assert by_key["stage:tutorial:baseline"]["status"] == "closed"
+    assert by_key["loop:2:post_kid_response"]["status"] == "open"
+    # ordered by gate_id (creation order)
+    assert [g["gate_id"] for g in gates] == sorted(g["gate_id"] for g in gates)
+
+
+def test_console_page_is_served(client):
+    r = client.get("/ui/console.html")
+    assert r.status_code == 200
+    assert "Operator Console" in r.text
+
+
 # --- override ----------------------------------------------------------------
 
 def test_override_releases_gate_and_marks_it(client, protocol_id, exports_tmp):

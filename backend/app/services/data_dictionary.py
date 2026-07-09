@@ -214,6 +214,24 @@ instructional baseline + 6 loops x 2 checkpoints). One row per gate.
 - `override_operator`, `override_reason` - who/why for an override.
 - `opened_at`, `closed_at`.
 
+### fidelity_scores.csv
+Human ABA/BST fidelity ratings, one row per scored loop (Operator Console v3).
+Human scoring only; no automated/LLM score is stored here, so the human rating
+is a blind ground truth for later validation.
+- `session_id`, `loop_index` (1..6) - unique together (one current row per loop).
+- `function_class`, `sd_id` - denormalized from `dtt_loops` (canonical there).
+- 15 rating fields, each `correct` | `incorrect` | `not_applicable` | `unscored`
+  (initial): `delivered_target`, `sd_delivered_as_written`, `sd_timing`,
+  `primary_rplus_delivery`, `primary_rplus_timing`, `ec_prompting_delivery`,
+  `ec_prompting_timing`, `ec_hp_delivery`, `ec_hp_timing`, `ec_rplus_delivery`,
+  `ec_rplus_timing`, `initial_sd_delivery`, `initial_sd_timing`,
+  `final_rplus_delivery`, `final_rplus_timing`. (SD = discriminative stimulus /
+  instruction; R+ = reinforcement; EC = error correction; HP = high-prompt step.)
+- `error_sources_json` - JSON array of error source(s) (interaction_flow,
+  ordering, timing, latency, wrong_item, sd_delivery, prompting, reinforcement,
+  error_correction, other); `notes` - optional free text.
+- `status` - `draft` | `complete`; `scored_by`; `created_at`, `updated_at`.
+
 ### perception_events.jsonl
 One JSON object per line; one row per perception poll. Outages are data, not gaps
 (a failed poll writes a row with `connection_status='down'` and null payload).
