@@ -14,6 +14,18 @@ dist/
 # Local environment (paths/ports are machine-specific; commit .env.example only)
 .env
 
+# Copyrighted questionnaire item text (public repo): verbatim wording for
+# bfi2s / rosas_* / erq lives here and must NEVER be committed. Only the
+# tracked configs/questionnaires/*.yaml (structure/IDs/scoring) are public.
+/configs/questionnaires/local/
+
+# Copyrighted questionnaire SOURCE documents (uploaded locally for verbatim
+# extraction into the local/ files above). Binary instrument sources only; the
+# tracked docs/*.md specs stay committed.
+/docs/*.docx
+/docs/*.pdf
+/docs/*.doc
+
 # Local data (never commit raw research data or the DB)
 /data/bst.db
 /data/bst.db-journal

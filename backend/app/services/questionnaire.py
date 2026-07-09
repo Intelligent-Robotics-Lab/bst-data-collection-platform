@@ -58,6 +58,35 @@ def _load_yaml(path: str, file_hash: str) -> dict:
         return yaml.safe_load(fh) or {}
 
 
+def _local_items_path(questionnaire_key: str) -> Path:
+    """Path to the GITIGNORED local verbatim item-text file for a questionnaire.
+
+    Copyright: the tracked config carries only structure/IDs/scoring; the
+    copyrighted item wording (bfi2s, rosas_*, erq) lives in
+    ``configs/questionnaires/local/<key>.items.yaml``, which is gitignored and
+    never committed. The loader joins that text onto the tracked structure by
+    item_id at render time. Demographics is the study's own instrument and keeps
+    its text inline in the tracked config (no local file)."""
+    return _questionnaires_dir() / "local" / f"{questionnaire_key}.items.yaml"
+
+
+def _load_local_items(questionnaire_key: str) -> dict[str, str]:
+    """Return {item_id: verbatim_text} from the local file, or {} if absent.
+
+    Accepts either a flat ``{item_id: text}`` map or a mapping under an ``items``
+    key. Missing file (e.g. a fresh public clone) -> {}, so the structure still
+    renders with no copyrighted text present."""
+    path = _local_items_path(questionnaire_key)
+    if not path.exists():
+        return {}
+    data = _load_yaml(str(path), _hash_file(path))
+    if isinstance(data, dict) and isinstance(data.get("items"), dict):
+        data = data["items"]
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): ("" if v is None else str(v)) for k, v in data.items()}
+
+
 def register_questionnaires(db: Session) -> list[Questionnaire]:
     """Idempotently upsert all questionnaire configs into ``questionnaires``.
     Additive only: never deletes a registered questionnaire."""
@@ -148,14 +177,19 @@ def build_render_spec(config: dict) -> dict:
     """A render-ready view of a questionnaire for the tablet: every item carries
     a resolved ``type`` and (for numeric items) a resolved ``scale`` so the
     client never has to know the engine's defaulting rules."""
+    local_text = _load_local_items(config["questionnaire_key"])
     items_out = []
     for item in config.get("items", []):
         itype = _item_type(item, config)
+        # Item text comes from the gitignored local file (by item_id) when present
+        # (copyrighted instruments); otherwise the tracked config's inline text
+        # (demographics / placeholders).
+        text = local_text.get(item["item_id"]) or item.get("text", "")
         out = {
             "item_id": item["item_id"],
             "index": item.get("index"),
             "type": itype,
-            "text": item.get("text", ""),
+            "text": text,
             "required": item.get("required", True),
         }
         if itype in _NUMERIC_TYPES:

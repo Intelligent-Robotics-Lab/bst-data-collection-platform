@@ -1,9 +1,16 @@
-# Demographics + prior-experience intake (pre-session).
+# Demographics + background intake (pre-session).
 #
-# These are study-authored fields (NOT a copyrighted instrument), so the display
-# text here is real. Item IDs are stable and independent of the display text.
-# Adding/editing an item is a config change only; the tablet renders it on the
-# next backend restart (no code change).
+# The study's OWN instrument (source: demographic_questionnaire_social_hri), NOT
+# a copyrighted questionnaire, so the real display text lives inline in this
+# tracked config. Item IDs are stable and independent of display text. 15 items
+# per docs/QUESTIONNAIRE_DEPLOYMENT.md section 4.
+#
+# Limitations (engine has no conditional/skip logic or per-option free text):
+#  - Items 11 and 12 are "if yes to item 10" follow-ups; they are marked
+#    required: false so a "No" on item 10 does not force them.
+#  - Options that read "(text)" in the source (self-describe / another identity /
+#    other) are captured as a selectable option value; free-text elaboration is
+#    not separately stored. Flagged for review if elaboration must be captured.
 questionnaire_key: demographics
 version: "1.0.0"
 title: "Demographics and Background"
@@ -11,19 +18,20 @@ timepoint: pre
 scale_type: mixed
 
 items:
+  # A. Basic
   - item_id: dem_age
     index: 1
     type: integer
     text: "Age (in years)"
-    required: true
-    min: 18
+    required: false
+    min: 0
     max: 120
 
-  - item_id: dem_gender
+  - item_id: dem_gender_identity
     index: 2
-    type: single_choice
-    text: "Gender"
-    required: true
+    type: multi_choice
+    text: "Gender identity (check all that apply)"
+    required: false
     options:
       - {value: woman, label: "Woman"}
       - {value: man, label: "Man"}
@@ -31,97 +39,141 @@ items:
       - {value: self_describe, label: "Prefer to self-describe"}
       - {value: no_answer, label: "Prefer not to answer"}
 
-  - item_id: dem_education
+  - item_id: dem_race_ethnicity
     index: 3
-    type: single_choice
-    text: "Highest level of education completed"
-    required: true
+    type: multi_choice
+    text: "Race/ethnicity (check all that apply)"
+    required: false
     options:
-      - {value: high_school, label: "High school or equivalent"}
-      - {value: some_college, label: "Some college"}
-      - {value: bachelors, label: "Bachelor's degree"}
-      - {value: masters, label: "Master's degree"}
-      - {value: doctorate, label: "Doctorate or professional degree"}
-      - {value: other, label: "Other"}
+      - {value: american_indian_alaska_native, label: "American Indian or Alaska Native"}
+      - {value: asian, label: "Asian"}
+      - {value: black_african_american, label: "Black or African American"}
+      - {value: hispanic_latino_spanish, label: "Hispanic, Latino, or Spanish origin"}
+      - {value: middle_eastern_north_african, label: "Middle Eastern or North African"}
+      - {value: native_hawaiian_pacific_islander, label: "Native Hawaiian or Other Pacific Islander"}
+      - {value: white, label: "White"}
+      - {value: another_identity, label: "Another identity"}
+      - {value: no_answer, label: "Prefer not to answer"}
 
-  - item_id: dem_prior_robot_experience
+  - item_id: dem_country_of_birth
     index: 4
-    type: single_choice
-    text: "How much prior experience do you have interacting with robots?"
-    required: true
-    options:
-      - {value: none, label: "None"}
-      - {value: a_little, label: "A little"}
-      - {value: moderate, label: "Moderate"}
-      - {value: extensive, label: "Extensive"}
+    type: text
+    text: "Country of birth"
+    required: false
 
-  - item_id: dem_prior_teaching_experience
+  - item_id: dem_primary_languages
     index: 5
-    type: single_choice
-    text: "How much prior experience do you have teaching or instructing others?"
-    required: true
-    options:
-      - {value: none, label: "None"}
-      - {value: a_little, label: "A little"}
-      - {value: moderate, label: "Moderate"}
-      - {value: extensive, label: "Extensive"}
+    type: text
+    text: "Primary language(s) spoken"
+    required: false
 
-  - item_id: dem_prior_aba_bst_dtt_experience
+  - item_id: dem_fluent_english
     index: 6
     type: single_choice
-    text: "Do you have prior experience with ABA, BST, or DTT methods?"
-    required: true
+    text: "Are you fluent in English?"
+    required: false
     options:
-      - {value: none, label: "None"}
-      - {value: trained, label: "Some formal training"}
-      - {value: practitioner, label: "I have practiced these methods"}
+      - {value: "yes", label: "Yes"}
+      - {value: "no", label: "No"}
 
-  - item_id: dem_prior_autism_intervention_experience
+  # B. Education & role
+  - item_id: dem_highest_education
     index: 7
     type: single_choice
-    text: "Do you have prior experience with autism intervention?"
-    required: true
+    text: "Highest education completed"
+    required: false
     options:
-      - {value: none, label: "None"}
-      - {value: some, label: "Some"}
-      - {value: extensive, label: "Extensive"}
+      - {value: high_school_ged, label: "High school/GED"}
+      - {value: some_college, label: "Some college"}
+      - {value: associate, label: "Associate"}
+      - {value: bachelors, label: "Bachelor's"}
+      - {value: masters, label: "Master's"}
+      - {value: doctoral_professional, label: "Doctoral or professional"}
+      - {value: no_answer, label: "Prefer not to answer"}
 
-  - item_id: dem_prior_caregiving_experience
+  - item_id: dem_employment_status
     index: 8
     type: single_choice
-    text: "Do you have prior caregiving experience?"
-    required: true
-    options:
-      - {value: none, label: "None"}
-      - {value: some, label: "Some"}
-      - {value: extensive, label: "Extensive"}
-
-  - item_id: dem_prior_clinical_training
-    index: 9
-    type: single_choice
-    text: "Do you have prior clinical training?"
-    required: true
-    options:
-      - {value: none, label: "None"}
-      - {value: some, label: "Some"}
-      - {value: extensive, label: "Extensive"}
-
-  - item_id: dem_baseline_confidence
-    index: 10
-    type: likert
-    text: "Right now, how confident do you feel about teaching a skill to the robot?"
-    required: true
-    scale:
-      type: likert
-      min: 1
-      max: 7
-      anchors:
-        1: "Not at all confident"
-        4: "Moderately confident"
-        7: "Extremely confident"
-
-  - item_id: dem_baseline_emotional_state
-    index: 11
-    type: text
-    text: "In a few words, how are you feeling right now?"
+    text: "Current employment status"
     required: false
+    options:
+      - {value: employed_full_time, label: "Employed full-time"}
+      - {value: employed_part_time, label: "Employed part-time"}
+      - {value: student, label: "Student"}
+      - {value: unemployed, label: "Unemployed"}
+      - {value: retired, label: "Retired"}
+      - {value: no_answer, label: "Prefer not to answer"}
+
+  - item_id: dem_primary_role_occupation
+    index: 9
+    type: text
+    text: "Current primary role or occupation"
+    required: false
+
+  # C. Experience
+  - item_id: dem_service_experience
+    index: 10
+    type: single_choice
+    text: "Do you work/volunteer in training, teaching, caregiving, counseling, customer service, or service-oriented interaction?"
+    required: false
+    options:
+      - {value: "yes", label: "Yes"}
+      - {value: "no", label: "No"}
+
+  - item_id: dem_service_roles
+    index: 11
+    type: multi_choice
+    text: "If yes, role(s) (check all that apply)"
+    required: false
+    options:
+      - {value: caregiver, label: "Caregiver"}
+      - {value: parent_family_support, label: "Parent-family support"}
+      - {value: teacher_educator, label: "Teacher or educator"}
+      - {value: counselor_therapist, label: "Counselor or therapist"}
+      - {value: customer_service, label: "Customer service"}
+      - {value: healthcare_patient_support, label: "Healthcare or patient support"}
+      - {value: social_services, label: "Social services"}
+      - {value: other, label: "Other"}
+
+  - item_id: dem_years_experience
+    index: 12
+    type: single_choice
+    text: "Years of experience"
+    required: false
+    options:
+      - {value: lt1, label: "<1"}
+      - {value: "1_3", label: "1-3"}
+      - {value: "4_6", label: "4-6"}
+      - {value: "7_10", label: "7-10"}
+      - {value: gt10, label: ">10"}
+
+  # D. Robots / agents
+  - item_id: dem_interacted_social_robot
+    index: 13
+    type: single_choice
+    text: "Have you ever interacted with a social robot before?"
+    required: false
+    options:
+      - {value: "yes", label: "Yes"}
+      - {value: "no", label: "No"}
+
+  - item_id: dem_interacted_virtual_avatar
+    index: 14
+    type: single_choice
+    text: "Have you ever interacted with a virtual avatar/conversational agent (research/training/assistance)?"
+    required: false
+    options:
+      - {value: "yes", label: "Yes"}
+      - {value: "no", label: "No"}
+
+  - item_id: dem_familiarity
+    index: 15
+    type: single_choice
+    text: "Familiarity with social robots or virtual agents"
+    required: false
+    options:
+      - {value: "none", label: "None"}
+      - {value: low, label: "Low"}
+      - {value: moderate, label: "Moderate"}
+      - {value: high, label: "High"}
+      - {value: very_high, label: "Very high"}
