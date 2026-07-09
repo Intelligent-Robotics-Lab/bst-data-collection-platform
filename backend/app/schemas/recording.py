@@ -1,7 +1,7 @@
 """Pydantic schemas for media recordings (P0.8). Read-only: recordings are
 created by the recording service under the session lifecycle, not via the API."""
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -31,3 +31,22 @@ class RecordingRead(BaseModel):
     ffmpeg_command: Optional[str] = None
     error_text: Optional[str] = None
     created_at: str
+
+
+class SaveRecordingRequest(BaseModel):
+    """Copy a finished recording to an archival location. The original is never
+    moved. mode='default' -> the configured SAVED_RECORDINGS_DIR; mode='as' ->
+    the operator-supplied dest_path (a folder or a full file path on the server
+    / a mounted drive). overwrite guards against clobbering an existing copy."""
+
+    mode: Literal["default", "as"] = "default"
+    dest_path: Optional[str] = None
+    overwrite: bool = False
+
+
+class SaveRecordingResult(BaseModel):
+    recording_id: int
+    saved_to: str
+    bytes: int
+    source: str
+    overwritten: bool = False

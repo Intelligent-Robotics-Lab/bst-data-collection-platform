@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     DATA_DIR: Path = PROJECT_ROOT / "data"
     DB_PATH: Path = PROJECT_ROOT / "data" / "bst.db"
     RECORDINGS_DIR: Path = PROJECT_ROOT / "data" / "recordings"
+    # Default target for the console's "Save" action: a copy of a finished
+    # recording is placed here (the original in RECORDINGS_DIR is never moved).
+    SAVED_RECORDINGS_DIR: Path = PROJECT_ROOT / "data" / "saved_recordings"
     EXPORTS_DIR: Path = PROJECT_ROOT / "data" / "exports"
     LOGS_DIR: Path = PROJECT_ROOT / "data" / "logs"
     SESSIONS_DIR: Path = PROJECT_ROOT / "data" / "sessions"
@@ -111,6 +114,10 @@ class Settings(BaseSettings):
         return _resolve(self.RECORDINGS_DIR)
 
     @property
+    def saved_recordings_dir(self) -> Path:
+        return _resolve(self.SAVED_RECORDINGS_DIR)
+
+    @property
     def logs_dir(self) -> Path:
         return _resolve(self.LOGS_DIR)
 
@@ -140,6 +147,7 @@ class Settings(BaseSettings):
             _resolve(self.DATA_DIR),
             self.db_path.parent,
             _resolve(self.RECORDINGS_DIR),
+            self.saved_recordings_dir,
             _resolve(self.EXPORTS_DIR),
             _resolve(self.LOGS_DIR),
             _resolve(self.SESSIONS_DIR),
