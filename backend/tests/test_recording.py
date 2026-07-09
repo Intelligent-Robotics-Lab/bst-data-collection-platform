@@ -102,50 +102,151 @@ def _running_recording(client, _session_factory, sid, pid, file_path):
     return db, rec
 
 
-def test_stop_marks_failed_when_ffmpeg_died_before_stop(client, _session_factory, tmp_path):
-    """The pilot bug: ffmpeg died on its own (e.g. audio device failed just after
-    start), so it is already dead at stop time and produced no file. That must be
-    'failed', never a false 'completed'."""
+def _stop_with(client, _session_factory, tmp_path, monkeypatch, *, sid, pid, exited, rc, playable):
+    """Drive stop_session_recording with a fake ffmpeg and a stubbed file probe."""
     from app.services import recording
     from app.services.session_service import get_session_or_404
 
-    missing = tmp_path / "never_written.mp4"
-    db, rec = _running_recording(client, _session_factory, "R_S1", "RP", missing)
-    recording._active["R_S1"] = recording._Active(
-        _FakeProc(rc=1, exited=True), rec.recording_id, missing, _FakeLog()
+    monkeypatch.setattr(recording, "probe_playable", lambda p: playable)
+    path = tmp_path / f"{sid}.mp4"
+    db, rec = _running_recording(client, _session_factory, sid, pid, path)
+    recording._active[sid] = recording._Active(
+        _FakeProc(rc=rc, exited=exited), rec.recording_id, path, _FakeLog()
     )
-    out = recording.stop_session_recording(db, get_session_or_404(db, "R_S1"))
+    return recording.stop_session_recording(db, get_session_or_404(db, sid))
+
+
+def test_stop_failed_when_ffmpeg_died_and_no_playable_file(client, _session_factory, tmp_path, monkeypatch):
+    """The pilot bug: ffmpeg died on its own (audio device failed just after
+    start) and produced nothing playable -> 'failed', never a false 'completed'."""
+    out = _stop_with(client, _session_factory, tmp_path, monkeypatch,
+                     sid="R_S1", pid="RP1", exited=True, rc=1, playable=False)
     assert out.status == "failed"
-    assert out.error_text and "exited on its own" in out.error_text
+    assert "exited on its own" in out.error_text
+    assert "no playable file" in out.error_text
 
 
-def test_stop_marks_failed_when_file_missing_despite_clean_exit(client, _session_factory, tmp_path):
-    from app.services import recording
-    from app.services.session_service import get_session_or_404
+def test_stop_interrupted_when_ffmpeg_died_but_file_is_playable(client, _session_factory, tmp_path, monkeypatch):
+    """A backend killed with SIGINT: ffmpeg exits on its own but finalizes the
+    mp4. The video is usable, so this is 'interrupted' -- not 'failed'."""
+    out = _stop_with(client, _session_factory, tmp_path, monkeypatch,
+                     sid="R_S2", pid="RP2", exited=True, rc=255, playable=True)
+    assert out.status == "interrupted"
+    assert "finalized and playable" in out.error_text
 
-    missing = tmp_path / "empty.mp4"  # never created
-    db, rec = _running_recording(client, _session_factory, "R_S2", "RP2", missing)
-    recording._active["R_S2"] = recording._Active(
-        _FakeProc(rc=0, exited=False), rec.recording_id, missing, _FakeLog()
-    )
-    out = recording.stop_session_recording(db, get_session_or_404(db, "R_S2"))
+
+def test_stop_failed_when_clean_exit_but_no_playable_file(client, _session_factory, tmp_path, monkeypatch):
+    out = _stop_with(client, _session_factory, tmp_path, monkeypatch,
+                     sid="R_S3", pid="RP3", exited=False, rc=0, playable=False)
     assert out.status == "failed"
-    assert out.error_text and "missing or empty" in out.error_text
+    assert "no playable file" in out.error_text
 
 
-def test_stop_marks_completed_when_clean_exit_and_file_present(client, _session_factory, tmp_path):
-    from app.services import recording
-    from app.services.session_service import get_session_or_404
-
-    good = tmp_path / "ok.mp4"
-    good.write_bytes(b"\x00" * 4096)  # non-empty file present
-    db, rec = _running_recording(client, _session_factory, "R_S3", "RP3", good)
-    recording._active["R_S3"] = recording._Active(
-        _FakeProc(rc=0, exited=False), rec.recording_id, good, _FakeLog()
-    )
-    out = recording.stop_session_recording(db, get_session_or_404(db, "R_S3"))
+def test_stop_completed_when_clean_exit_and_playable(client, _session_factory, tmp_path, monkeypatch):
+    out = _stop_with(client, _session_factory, tmp_path, monkeypatch,
+                     sid="R_S4", pid="RP4", exited=False, rc=0, playable=True)
     assert out.status == "completed"
     assert not out.error_text
+
+
+# --- probe_playable against real files ---------------------------------------
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None,
+                    reason="ffmpeg/ffprobe not installed")
+def test_probe_playable_detects_finalized_vs_truncated(tmp_path):
+    from app.services.recording import probe_playable
+
+    good = tmp_path / "good.mp4"
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=64x64:rate=10",
+         "-t", "0.3", "-pix_fmt", "yuv420p", str(good)], check=True,
+    )
+    assert probe_playable(good) is True
+
+    # a SIGKILLed capture looks like this: bytes on disk, but no moov atom
+    truncated = tmp_path / "truncated.mp4"
+    truncated.write_bytes(good.read_bytes()[:512])
+    assert probe_playable(truncated) is False
+
+    assert probe_playable(tmp_path / "missing.mp4") is False
+
+
+# --- crash recovery: startup reconciliation + graceful shutdown ---------------
+
+
+def test_reconcile_stale_recording_playable_becomes_interrupted(client, _session_factory, tmp_path, monkeypatch):
+    from app.services import recording
+
+    monkeypatch.setattr(recording, "_pids_holding", lambda p: [])
+    monkeypatch.setattr(recording, "probe_playable", lambda p: True)
+    db, rec = _running_recording(client, _session_factory, "R_S5", "RP5", tmp_path / "a.mp4")
+
+    out = recording.reconcile_stale_recordings(db)
+    assert [r.recording_id for r in out] == [rec.recording_id]
+    db.refresh(rec)
+    assert rec.status == "interrupted"
+    assert "reconciled at startup" in rec.error_text
+    assert rec.stop_timestamp_utc  # closed out
+
+
+def test_reconcile_stale_recording_unplayable_becomes_failed(client, _session_factory, tmp_path, monkeypatch):
+    from app.services import recording
+
+    monkeypatch.setattr(recording, "_pids_holding", lambda p: [])
+    monkeypatch.setattr(recording, "probe_playable", lambda p: False)
+    db, rec = _running_recording(client, _session_factory, "R_S6", "RP6", tmp_path / "b.mp4")
+
+    recording.reconcile_stale_recordings(db)
+    db.refresh(rec)
+    assert rec.status == "failed"
+    assert "no playable file" in rec.error_text
+
+
+def test_reconcile_sigints_an_orphaned_recorder(client, _session_factory, tmp_path, monkeypatch):
+    """An ffmpeg that outlived its backend is SIGINTed (it finalizes the mp4),
+    not left running or SIGKILLed."""
+    from app.services import recording
+
+    signalled = []
+    holders = [4242]
+    monkeypatch.setattr(recording, "_pids_holding", lambda p: list(holders))
+    monkeypatch.setattr(recording, "probe_playable", lambda p: True)
+
+    def fake_kill(pid, sig):
+        signalled.append((pid, sig))
+        holders.clear()  # it exits after the SIGINT
+
+    monkeypatch.setattr(recording.os, "kill", fake_kill)
+    db, rec = _running_recording(client, _session_factory, "R_S7", "RP7", tmp_path / "c.mp4")
+
+    recording.reconcile_stale_recordings(db)
+    import signal as _signal
+    assert signalled == [(4242, _signal.SIGINT)]
+    db.refresh(rec)
+    assert rec.status == "interrupted"
+
+
+def test_reconcile_noop_when_nothing_stale(client, _session_factory):
+    from app.services import recording
+    db = _session_factory()
+    assert recording.reconcile_stale_recordings(db) == []
+
+
+def test_shutdown_gracefully_stops_active_recordings(client, _session_factory, tmp_path, monkeypatch):
+    from app.services import recording
+
+    monkeypatch.setattr(recording, "probe_playable", lambda p: True)
+    path = tmp_path / "live.mp4"
+    db, rec = _running_recording(client, _session_factory, "R_S8", "RP8", path)
+    proc = _FakeProc(rc=0, exited=False)  # still running
+    recording._active["R_S8"] = recording._Active(proc, rec.recording_id, path, _FakeLog())
+
+    recording.shutdown_active_recordings(session_factory=_session_factory)
+
+    assert "R_S8" not in recording._active  # handle released
+    db.refresh(rec)
+    assert rec.status == "completed"  # finalized via the graceful 'q' path
 
 
 # --- lifecycle behavior ------------------------------------------------------

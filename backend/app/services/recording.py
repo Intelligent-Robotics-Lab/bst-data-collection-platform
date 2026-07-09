@@ -25,13 +25,16 @@ slot). Persistence is the ``media_recordings`` table.
 from __future__ import annotations
 
 import logging
+import os
 import shlex
+import signal
 import subprocess
 import threading
 import time
 from datetime import datetime
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -41,6 +44,65 @@ from app.models.signals import MediaRecording
 from app.services.timeline import compute_session_time_ms, record_timeline_event
 
 logger = logging.getLogger("bst.recording")
+
+# Statuses a row can sit in while a capture is (believed to be) in flight.
+_IN_FLIGHT_STATUSES = ("recording", "pending")
+
+
+def probe_playable(path: Path) -> bool:
+    """True when ffprobe can read a duration, i.e. the mp4 has its moov atom and
+    is genuinely playable.
+
+    Size alone cannot tell: a SIGKILLed ffmpeg leaves a large file whose trailer
+    was never written ("moov atom not found"). If ffprobe is unavailable we fall
+    back to "non-empty file", which is the best that box can say.
+    """
+    try:
+        if not path.exists() or path.stat().st_size == 0:
+            return False
+    except OSError:
+        return False
+    try:
+        proc = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True,
+            timeout=15,
+        )
+    except FileNotFoundError:
+        return True  # no ffprobe here; a non-empty file is all we can verify
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+    duration = proc.stdout.decode("utf-8", "replace").strip()
+    return proc.returncode == 0 and duration not in ("", "N/A")
+
+
+def _pids_holding(path: Path) -> list[int]:
+    """PIDs holding this exact file open (Linux /proc). Used to spot an ffmpeg
+    that outlived the backend that spawned it. Returns [] where /proc is absent
+    or unreadable."""
+    proc_root = Path("/proc")
+    if not proc_root.is_dir():
+        return []
+    try:
+        target = str(path.resolve())
+    except OSError:
+        target = str(path)
+    pids: list[int] = []
+    for entry in proc_root.iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            for fd in (entry / "fd").iterdir():
+                try:
+                    if os.readlink(fd) == target:
+                        pids.append(int(entry.name))
+                        break
+                except OSError:
+                    continue
+        except OSError:
+            continue  # process vanished, or not ours to inspect
+    return pids
 
 
 class RecordingError(Exception):
@@ -250,6 +312,7 @@ def stop_session_recording(db: Session, session: StudySession) -> MediaRecording
     # mid-recording (e.g. a device that failed just after start) -- this is NOT a
     # clean finish, no matter what the timeline said during the session.
     already_exited = proc.poll() is not None
+    escalated = False  # we had to SIGTERM/SIGKILL because 'q' was ignored
     status_final = "completed"
     error_text: str | None = None
 
@@ -276,35 +339,49 @@ def stop_session_recording(db: Session, session: StudySession) -> MediaRecording
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait(timeout=5)
-                status_final = "interrupted"
-                error_text = "ffmpeg did not exit on 'q'; terminated (mp4 trailer may be partial)"
+                escalated = True
     finally:
         try:
             active.log_file.close()
         except Exception:  # noqa: BLE001
             pass
 
-    # Research-integrity check: a 'completed' status must correspond to a real,
-    # non-empty file from a clean ffmpeg exit. A process that died on its own, a
-    # non-zero exit, or a missing/empty file is a FAILED capture -- we must never
-    # record success for A/V that is not on disk (a gap is a logged failure row,
-    # not a false success). This is what catches an early device failure that
-    # slipped past the start-time settle check.
+    # Research-integrity classification. The recorded status must match what is
+    # actually on disk, so we probe the file rather than trust the exit path:
+    #   completed   -- clean 'q' exit AND a playable (finalized) file
+    #   interrupted -- capture ended unexpectedly but the file IS playable
+    #                  (ffmpeg finalizes on SIGINT/SIGTERM, so this is usable A/V)
+    #   failed      -- no playable file: missing, empty, or unfinalized (a
+    #                  SIGKILLed mp4 is large but has no moov atom)
+    # We never claim success for A/V that is not on disk, and never write off a
+    # perfectly good file as 'failed'.
     returncode = proc.poll()
     out_path = Path(active.file_path)
-    file_ok = out_path.exists() and out_path.stat().st_size > 0
-    if already_exited:
-        status_final = "failed"
-        error_text = (
-            f"ffmpeg exited on its own before stop (code {returncode}); no clean "
-            "recording -- see the ffmpeg log in LOGS_DIR"
+    playable = probe_playable(out_path)
+    log_hint = "see the ffmpeg log in LOGS_DIR"
+
+    if already_exited or escalated:
+        reason = (
+            f"ffmpeg exited on its own before stop (code {returncode})"
+            if already_exited
+            else "ffmpeg ignored 'q' and was terminated"
         )
-    elif status_final == "completed" and returncode not in (0, None):
-        status_final = "failed"
-        error_text = f"ffmpeg exited with code {returncode}; see the ffmpeg log in LOGS_DIR"
-    if status_final == "completed" and not file_ok:
-        status_final = "failed"
-        error_text = f"recording file missing or empty at stop ({out_path})"
+        status_final = "interrupted" if playable else "failed"
+        error_text = (
+            f"{reason}; file is finalized and playable"
+            if playable
+            else f"{reason}; no playable file on disk (unfinalized or missing)"
+        ) + f" -- {log_hint}"
+    elif returncode in (0, None) and playable:
+        status_final = "completed"
+        error_text = None
+    else:
+        status_final = "interrupted" if playable else "failed"
+        error_text = (
+            f"ffmpeg exited with code {returncode}; "
+            + ("file is playable" if playable else "no playable file on disk")
+            + f" -- {log_hint}"
+        )
 
     now = now_utc()
     rec = db.get(MediaRecording, active.recording_id)
@@ -342,3 +419,124 @@ def stop_session_recording(db: Session, session: StudySession) -> MediaRecording
         rec.duration_ms,
     )
     return rec
+
+
+# --- crash / shutdown resilience ---------------------------------------------
+
+
+def shutdown_active_recordings(session_factory=None) -> None:
+    """Gracefully stop every in-flight recording when the backend shuts down.
+
+    Without this, stopping the backend orphans ffmpeg (it keeps recording, with
+    nobody to finalize it) or leaves the mp4 unwritten. Never raises: a shutdown
+    must not fail because a recording misbehaved. ``session_factory`` is
+    injectable so tests never reach the real database."""
+    with _lock:
+        session_ids = list(_active.keys())
+    if not session_ids:
+        return
+
+    if session_factory is None:
+        from app.db.session import SessionLocal  # local import: keep graph flat
+
+        session_factory = SessionLocal
+
+    db = session_factory()
+    try:
+        for session_id in session_ids:
+            try:
+                session = db.get(StudySession, session_id)
+                if session is None:
+                    continue
+                logger.warning(
+                    "shutdown: gracefully stopping in-flight recording for %s", session_id
+                )
+                stop_session_recording(db, session)
+            except Exception:  # noqa: BLE001 - shutdown must never raise
+                logger.exception("shutdown: could not stop recording for %s", session_id)
+    finally:
+        db.close()
+
+
+def reconcile_stale_recordings(db: Session) -> list[MediaRecording]:
+    """Close out rows a previous process left mid-flight (startup recovery).
+
+    A backend that died (crash, ``kill -9``, restart) leaves media_recordings
+    rows at 'recording'/'pending' forever, and can leave an ORPHANED ffmpeg
+    still writing the file. For each stale row we:
+
+      1. SIGINT any process still holding that file. ffmpeg handles SIGINT by
+         writing the mp4 trailer, so this RESCUES the video instead of losing it
+         (SIGKILL would leave it unplayable).
+      2. Probe the file and record the honest outcome: 'interrupted' when a
+         playable file exists, 'failed' when there is none.
+
+    Never deletes or moves a file. Never raises."""
+    stale = db.scalars(
+        select(MediaRecording).where(MediaRecording.status.in_(_IN_FLIGHT_STATUSES))
+    ).all()
+    if not stale:
+        return []
+
+    reconciled: list[MediaRecording] = []
+    for rec in stale:
+        try:
+            path = Path(rec.file_path) if rec.file_path else None
+            if path is not None:
+                holders = _pids_holding(path)
+                for pid in holders:
+                    logger.warning(
+                        "reconcile: SIGINT orphaned recorder pid %s writing %s", pid, path
+                    )
+                    try:
+                        os.kill(pid, signal.SIGINT)
+                    except OSError:  # already gone, or not ours
+                        continue
+                if holders:
+                    # Give ffmpeg a moment to write the trailer before we probe.
+                    deadline = time.time() + settings.RECORDING_STOP_TIMEOUT_S
+                    while time.time() < deadline and _pids_holding(path):
+                        time.sleep(0.2)
+
+            playable = probe_playable(path) if path is not None else False
+            rec.status = "interrupted" if playable else "failed"
+            rec.error_text = (
+                "backend exited while recording; reconciled at startup -- "
+                + (
+                    "file finalized and playable"
+                    if playable
+                    else "no playable file on disk"
+                )
+            )
+            if not rec.stop_timestamp_utc:
+                rec.stop_timestamp_utc = now_utc().isoformat()
+
+            session = db.get(StudySession, rec.session_id)
+            if session is not None:
+                record_timeline_event(
+                    db,
+                    session=session,
+                    source="recording",
+                    type="recording_reconciled",
+                    payload={
+                        "recording_id": rec.recording_id,
+                        "status": rec.status,
+                        "file_path": rec.file_path,
+                        "playable": playable,
+                    },
+                    ref_table="media_recordings",
+                    ref_id=str(rec.recording_id),
+                )
+            reconciled.append(rec)
+            logger.warning(
+                "reconcile: recording %s (%s) -> %s",
+                rec.recording_id,
+                rec.session_id,
+                rec.status,
+            )
+        except Exception:  # noqa: BLE001 - startup must never fail on one bad row
+            logger.exception("reconcile: failed for recording %s", rec.recording_id)
+
+    if reconciled:
+        db.commit()
+    return reconciled
