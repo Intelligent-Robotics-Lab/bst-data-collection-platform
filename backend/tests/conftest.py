@@ -20,12 +20,15 @@ from app.services.questionnaire import register_questionnaires
 
 
 @pytest.fixture(autouse=True)
-def _recording_off_by_default(monkeypatch):
-    """Insulate tests from the developer's .env: recording is OFF unless a test
-    explicitly enables it (the recording lifecycle tests monkeypatch it on).
-    Without this, setting RECORDING_ENABLED=true in .env would make every session
-    start spawn real ffmpeg during the test run."""
+def _capture_off_by_default(monkeypatch):
+    """Insulate tests from the developer's .env: recording and perception are OFF
+    unless a test explicitly enables them (the lifecycle tests monkeypatch them on).
+
+    Without this, RECORDING_ENABLED=true would spawn real ffmpeg on every session
+    start, and PERCEPTION_ENABLED=true would poll the real orchestrator and add
+    perception_polling_* timeline events -- making the suite depend on the host."""
     monkeypatch.setattr(settings, "RECORDING_ENABLED", False, raising=False)
+    monkeypatch.setattr(settings, "PERCEPTION_ENABLED", False, raising=False)
 
 
 @pytest.fixture

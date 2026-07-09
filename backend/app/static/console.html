@@ -420,10 +420,15 @@ $("btn-create").onclick = async () => {
   let r = await api("POST","/participants",{participant_id:pid});
   if (!r.ok && r.status!==409) { setMsg("setup-msg","Participant: "+r.error,"err"); btn.disabled=false; return; }
 
-  // 2) attach a registered protocol if one exists (best effort; keeps trials/exports coherent)
+  // 2) attach a registered protocol if one exists (best effort; keeps trials/exports coherent).
+  // Pick the NEWEST registered protocol (highest protocol_id). Older versions stay
+  // in the registry so past sessions keep the provenance of what they actually ran;
+  // taking [0] would silently pin every new session to the oldest (placeholder) one.
   let protocol_id = null;
   const pr = await api("GET","/protocols");
-  if (pr.ok && Array.isArray(pr.data) && pr.data.length) protocol_id = pr.data[0].protocol_id;
+  if (pr.ok && Array.isArray(pr.data) && pr.data.length) {
+    protocol_id = pr.data.reduce((a,b) => (b.protocol_id > a.protocol_id ? b : a)).protocol_id;
+  }
 
   // 3) create session
   const payload = { session_id:sid, participant_id:pid, scenario_type:"bst_dtt",

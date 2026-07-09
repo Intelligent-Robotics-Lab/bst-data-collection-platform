@@ -211,10 +211,9 @@ def test_ready_true_when_everything_captured(client, protocol_id, questionnaires
 
     # a DTT trial logged (so the completeness view has no advisory notes either)
     client.post(f"/sessions/{sid}/trials", json={
-        "loop_index": 1, "sd_id": "sd_1", "phase_key": "baseline",
-        "target_skill": "skill_a", "response_correctness": "correct",
-        "prompt_level": "independent", "reinforcement_delivered": True,
-        "error_correction_delivered": False,
+        "loop_index": 1, "sd_id": "sd_1", "phase_key": "rehearsal",
+        "target_skill": "manding", "response_correctness": "correct",
+        "reinforcement_delivered": True, "error_correction_delivered": False,
     })
 
     # submit every registered pre/post questionnaire (one finalized item each)

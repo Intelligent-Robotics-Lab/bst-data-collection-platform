@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.core.timeutil import now_utc
 from app.models.dtt import DttLoop, DttPhase, DttTrial
+from app.services.dtt_loops import resolve_named_sd
 from app.models.session import StudySession
 from app.services.protocol import get_protocol_config
 from app.services.timeline import compute_session_time_ms, record_timeline_event
@@ -24,6 +25,25 @@ from app.services.timeline import compute_session_time_ms, record_timeline_event
 
 def _unprocessable(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=detail)
+
+
+def _named_sd_text(cfg: dict, session: StudySession, loop_index: int | None) -> str | None:
+    """The real SD wording for the named SD occupying this loop, e.g. loop 2 of
+    order group 1 -> "Receptive Instruction" -> "Nod your head.".
+
+    Which named SD sits in a loop depends on the participant's pb_order_group
+    (the Latin square), so this cannot come from the positional sd_id alone.
+    Returns None when the mapping is unavailable (no group, no loop, or a
+    protocol config without named_sds -- e.g. the old placeholder)."""
+    if loop_index is None or session.pb_order_group is None:
+        return None
+    name = resolve_named_sd(session.pb_order_group, loop_index)
+    if not name:
+        return None
+    for entry in cfg.get("named_sds") or []:
+        if entry.get("name") == name:
+            return entry.get("sd")
+    return None
 
 
 def create_trial(db: Session, session: StudySession, payload) -> DttTrial:
@@ -85,12 +105,14 @@ def create_trial(db: Session, session: StudySession, payload) -> DttTrial:
     if payload.sd_id not in sds:
         raise _unprocessable(f"unknown sd_id '{payload.sd_id}'; valid: {sorted(sds)}")
 
-    # prompt_level
-    prompt_levels = cfg.get("prompt_levels", [])
-    if payload.prompt_level not in prompt_levels:
-        raise _unprocessable(
-            f"unknown prompt_level '{payload.prompt_level}'; valid: {prompt_levels}"
-        )
+    # prompt_level: optional. This protocol has no prompt hierarchy (error
+    # correction is a fixed sequence), so it is only validated when supplied.
+    if payload.prompt_level is not None:
+        prompt_levels = cfg.get("prompt_levels", [])
+        if payload.prompt_level not in prompt_levels:
+            raise _unprocessable(
+                f"unknown prompt_level '{payload.prompt_level}'; valid: {prompt_levels}"
+            )
 
     # missed / extra steps validate against the skill's ordered step IDs
     valid_steps = set(skill.get("steps", []))
@@ -113,7 +135,9 @@ def create_trial(db: Session, session: StudySession, payload) -> DttTrial:
             DttPhase.phase_key == payload.phase_key,
         )
     )
-    sd_label = sds[payload.sd_id].get("label")
+    sd_label = _named_sd_text(cfg, session, payload.loop_index) or sds[payload.sd_id].get(
+        "label"
+    )
 
     # auto trial_number per session
     last = db.scalar(

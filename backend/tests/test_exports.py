@@ -60,10 +60,9 @@ def _build_session(client, factory, protocol_id, group=1, sid="EXP_S1", pid="EXP
         json={
             "loop_index": 2,
             "sd_id": "sd_2",
-            "phase_key": "baseline",
-            "target_skill": "skill_a",
+            "phase_key": "rehearsal",
+            "target_skill": "reception",
             "response_correctness": "correct",
-            "prompt_level": "independent",
             "reinforcement_delivered": True,
             "error_correction_delivered": False,
         },

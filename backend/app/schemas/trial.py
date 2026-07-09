@@ -18,7 +18,10 @@ class TrialCreate(BaseModel):
     phase_key: str
     target_skill: str  # skill_id from the protocol config
     response_correctness: ResponseCorrectness
-    prompt_level: str
+    # Optional: this protocol has no prompt-level hierarchy (error correction is
+    # a fixed prompting -> hp_sd -> retry_sd sequence). When supplied it must be
+    # one of the protocol config's prompt_levels.
+    prompt_level: Optional[str] = None
     reinforcement_delivered: bool
     error_correction_delivered: bool
     missed_steps: Optional[list[str]] = None
