@@ -153,6 +153,24 @@ One row per logged DTT trial. `loop_index` references `dtt_loops`.
 - `response_latency_ms`, `dtt_phase_id`, `protocol_id`, `notes`.
 - `timestamp_utc`, `session_time_ms` (relative to session start), `created_at`.
 
+### dtt_performance_events.csv
+The **within-trial interaction flow**: one append-only row per step of the DTT
+state machine the robot runs, joined to its trial by `trial_id`.
+- `step_index` - order within the trial (1..n).
+- `step_label` - one of `sd`, `kid_behavior_1`, `reinforcement`, `prompting`,
+  `kid_behavior_2`, `hp_sd`, `kid_behavior_hp`, `retry_sd`, `kid_behavior_retry`,
+  `feedback` (the robot's TrialState, snake_cased).
+- `outcome` - what happened at that step, verbatim from the robot (e.g.
+  `recognized` / `not_recognized` for a trainer step, `emitted` for a child step).
+- `timestamp_utc` - the robot's clock for the step when supplied; `session_time_ms`
+  is always the platform's offset from session start.
+- `raw_json` - any extra step detail, recorded verbatim.
+
+The **error-correction path taken** is recoverable from these rows: a trial whose
+steps stop at `reinforcement` was correct first try; one that reaches `prompting`
+/ `hp_sd` / `retry_sd` went that far into error correction. Only the three
+problem-behavior SDs (function_class PR/NR/AR) have an error-correction path.
+
 ### questionnaire_responses.csv
 One row per item response (ERQ, BFI-2-S, RoSAS, etc.). No copyrighted item text:
 - `questionnaire_key`, `questionnaire_version`, `item_id` (stable), `item_index`.

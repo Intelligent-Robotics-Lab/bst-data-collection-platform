@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.timeutil import now_utc
-from app.models.dtt import DttLoop, DttTrial
+from app.models.dtt import DttLoop, DttPerformanceEvent, DttTrial
 from app.models.fidelity import FidelityScore
 from app.models.participant import Participant
 from app.models.questionnaire import QuestionnaireResponse, QuestionnaireScore
@@ -129,6 +129,15 @@ def _write_raw_dumps(db: Session, session: StudySession, out: Path) -> tuple[lis
         select(DttTrial).where(DttTrial.session_id == sid).order_by(DttTrial.trial_number)
     ).all()
     csv_dump("dtt_trials.csv", DttTrial, trials)
+
+    # dtt_performance_events: the within-trial interaction flow (one row per step
+    # of the robot's TrialState machine), append-only and joined to a trial.
+    perf = db.scalars(
+        select(DttPerformanceEvent)
+        .where(DttPerformanceEvent.session_id == sid)
+        .order_by(DttPerformanceEvent.trial_id, DttPerformanceEvent.step_index)
+    ).all()
+    csv_dump("dtt_performance_events.csv", DttPerformanceEvent, perf)
 
     q_responses = db.scalars(
         select(QuestionnaireResponse)
