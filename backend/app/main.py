@@ -22,6 +22,7 @@ from app.api import (
     notes,
     participants,
     perception,
+    preflight,
     protocols,
     questionnaires,
     recordings,
@@ -105,6 +106,7 @@ app.include_router(launch.router)
 app.include_router(tablet.router)
 app.include_router(fidelity.router)
 app.include_router(finish.router)
+app.include_router(preflight.router)
 
 # Minimal participant-intake UI (interim; superseded by the React+Vite app in a
 # later phase). Served at /ui/.

@@ -6,8 +6,9 @@ JSONL (default) so a completed session reconstructs from this stream alone.
 """
 
 import json
+from typing import Optional
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,12 +18,13 @@ from app.models.dtt import DttLoop
 from app.models.session import StudySession
 from app.schemas.dtt_loop import DttLoopRead
 from app.schemas.session import SessionCreate, SessionRead
+from app.services.preflight import run_preflight
 from app.services.session_service import (
     apply_transition,
     create_session,
     get_session_or_404,
 )
-from app.services.timeline import serialize_timeline_event
+from app.services.timeline import record_timeline_event, serialize_timeline_event
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -59,8 +61,46 @@ def get_loops(session_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{session_id}/start", response_model=SessionRead)
-def start(session_id: str, db: Session = Depends(get_db)):
-    return apply_transition(db, get_session_or_404(db, session_id), "start")
+def start(
+    session_id: str,
+    override: bool = False,
+    override_operator: Optional[str] = None,
+    override_reason: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Start the session -- gated by the preflight checks (P0.12).
+
+    A blocking failure (a required check that FAILED, e.g. recording or
+    perception disabled) refuses the start with 409 and the failing checks,
+    unless ``override=true`` is passed, in which case the override is recorded on
+    the timeline and the session starts anyway."""
+    session = get_session_or_404(db, session_id)
+    report = run_preflight()
+    blocking = report["blocking"]
+    if blocking:
+        if not override:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "preflight checks failed; fix them or start with override=true",
+                    "failed": [c["id"] for c in blocking],
+                    "checks": blocking,
+                },
+            )
+        # Overrides are a deliberate, logged decision (P0.12: override in timeline).
+        record_timeline_event(
+            db,
+            session=session,
+            source="preflight",
+            type="preflight_overridden",
+            payload={
+                "failed": [c["id"] for c in blocking],
+                "operator": override_operator,
+                "reason": override_reason,
+                "checks": blocking,
+            },
+        )
+    return apply_transition(db, session, "start")
 
 
 @router.post("/{session_id}/pause", response_model=SessionRead)

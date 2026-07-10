@@ -104,6 +104,15 @@
     .fidtable td.v-not_applicable { color:#667; }
     .fidtable td.v-unscored { color:#aab; }
     .fidwrap { overflow-x:auto; }
+    /* Preflight checks */
+    .pfrow { display:flex; align-items:center; gap:.6rem; padding:.4rem 0; border-top:1px solid var(--line); }
+    .pfrow:first-child { border-top:none; }
+    .pfrow .pflabel { flex:1 1 auto; }
+    .pfrow .pfdetail { color:var(--muted); font-size:.82rem; }
+    .pill.pf-pass { background:#e8f7ef; color:var(--accent-dark); border-color:#bfe6cf; }
+    .pill.pf-fail { background:#fdecea; color:var(--bad); border-color:#f6c4bd; }
+    .pill.pf-warn { background:#fef3e2; color:var(--warn); border-color:#f6dcae; }
+    .pill.pf-na   { background:#eef1f4; color:#667; border-color:#d7dde3; }
     /* Recordings tab */
     .rec-card { border:1px solid var(--line); border-radius:12px; padding:1rem 1.1rem; margin-bottom:1rem; background:#fff; }
     .rec-head { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
@@ -157,9 +166,15 @@
         <button class="primary" id="btn-create">Create &amp; start session</button>
         <div class="msg" id="setup-msg"></div>
       </div>
+      <div class="card" id="preflight-card">
+        <h2>Pre-session checks <span class="pill" id="preflight-overall" style="margin-left:.4rem;">—</span></h2>
+        <p class="hint">Verified automatically. A red <b>required</b> check blocks start — two pilots ran blind because these were never actually checked. Fix it, or start with an explicit, logged override.</p>
+        <button class="secondary" id="btn-preflight">Re-run checks</button>
+        <div id="preflight-list" style="margin-top:.6rem;">—</div>
+      </div>
       <div class="card">
-        <h2>Pre-session checklist</h2>
-        <p class="hint">You can advance once the session is running; the checklist is your reminder.</p>
+        <h2>Consent &amp; setup reminders</h2>
+        <p class="hint">Human checks the platform can't verify. Confirm before starting.</p>
         <ul class="check" id="pre-check"></ul>
       </div>
     </section>
@@ -396,6 +411,7 @@ function goStage(stg) {
   if (stg==="live") { startPoll(); loadFidelity(); }
   if (stg==="onboarding") loadQuestionnaires("pre","pre-q","preq-msg");
   if (stg==="post") loadQuestionnaires("post","post-q","postq-msg");
+  if (stg==="setup") loadPreflight();
   if (stg==="closeout") loadCompleteness();
 }
 
@@ -437,14 +453,50 @@ $("btn-create").onclick = async () => {
   r = await api("POST","/sessions",payload);
   if (!r.ok) { setMsg("setup-msg","Session: "+r.error,"err"); btn.disabled=false; return; }
 
-  // 4) start (generates dtt_loops)
+  // 4) start (generates dtt_loops) — gated by the preflight checks (P0.12)
   r = await api("POST","/sessions/"+encodeURIComponent(sid)+"/start");
+  if (!r.ok && r.status===409) {
+    let detail={}; try { detail=JSON.parse(r.error); } catch(_){}
+    const failed=(detail.checks||[]).map(c=>"• "+c.label+" — "+c.detail).join("\n");
+    loadPreflight();  // surface the red checks in the card
+    const reason = prompt(
+      "PRE-SESSION CHECKS FAILED — this session would run blind:\n\n"+failed+
+      "\n\nEnter a reason to start ANYWAY (recorded to the session timeline), or Cancel to fix first.", "");
+    if (reason===null || !reason.trim()) {
+      setMsg("setup-msg","Start blocked by preflight. Fix the checks above, then try again.","err");
+      btn.disabled=false; return;
+    }
+    r = await api("POST","/sessions/"+encodeURIComponent(sid)+"/start"
+      +"?override=true&override_operator=console&override_reason="+encodeURIComponent(reason.trim()));
+  }
   if (!r.ok) { setMsg("setup-msg","Start: "+r.error,"err"); btn.disabled=false; return; }
 
   S.pid=pid; S.sid=sid; S.state=r.data.state; S.running=(r.data.state==="running");
   setMsg("setup-msg","Session created and running. Canonical ID: "+sid+" — use this everywhere.","ok");
   renderHeader(); renderStepper();
 };
+
+// --- Pre-session preflight (P0.12) -----------------------------------------
+function renderPreflight(rep){
+  const box=$("preflight-list");
+  box.innerHTML = (rep.checks||[]).map(c=>{
+    const cls = c.status==="pass"?"pf-pass":(c.status==="fail"?"pf-fail":(c.status==="warn"?"pf-warn":"pf-na"));
+    const flag = (c.required && c.status==="fail") ? " ⛔" : "";
+    return '<div class="pfrow"><span class="pflabel">'+escapeHtml(c.label)+flag
+      +'<div class="pfdetail">'+escapeHtml(c.detail||"")+'</div></span>'
+      +'<span class="pill '+cls+'">'+escapeHtml(c.status)+'</span></div>';
+  }).join("") || '<p class="hint">No checks.</p>';
+  const ov=$("preflight-overall");
+  if(rep.ready){ ov.textContent="ready"; ov.className="pill pf-pass"; }
+  else { ov.textContent=((rep.blocking&&rep.blocking.length)||0)+" blocking"; ov.className="pill pf-fail"; }
+}
+async function loadPreflight(){
+  const box=$("preflight-list"); box.textContent="Checking…";
+  const r=await api("GET","/preflight");
+  if(!r.ok){ box.textContent="Unavailable: "+escapeHtml(r.error); $("preflight-overall").textContent="?"; return; }
+  renderPreflight(r.data);
+}
+$("btn-preflight").onclick = loadPreflight;
 
 // --- Questionnaire push + status -------------------------------------------
 // Exact registered version per key (from the questionnaire list). The submission

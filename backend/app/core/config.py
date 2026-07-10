@@ -105,6 +105,14 @@ class Settings(BaseSettings):
     # flag identical so the wiring under test matches the real command.
     RECORDING_USE_TEST_SOURCE: bool = False
 
+    # --- Pre-session preflight gate (P0.12) ---
+    # A session start is blocked when a REQUIRED check fails, unless the operator
+    # overrides (which is logged to the timeline). Two pilots ran blind (no audio,
+    # no perception) because the old checklist verified nothing; these are the
+    # thresholds the real checks use.
+    PREFLIGHT_MIN_FREE_GB: float = 5.0  # recordings mount must have at least this free
+    PREFLIGHT_TABLET_STALE_S: float = 15.0  # tablet "connected" if it polled within this
+
     @property
     def db_path(self) -> Path:
         return _resolve(self.DB_PATH)

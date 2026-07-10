@@ -14,7 +14,12 @@ from app.db.session import get_db
 from app.schemas.tablet import AssignmentRead, PushPayload
 from app.services.questionnaire import get_questionnaire
 from app.services.session_service import get_session_or_404
-from app.services.tablet import clear_assignment, get_assignment, set_assignment
+from app.services.tablet import (
+    clear_assignment,
+    get_assignment,
+    mark_tablet_poll,
+    set_assignment,
+)
 from app.services.timeline import record_timeline_event
 
 router = APIRouter(prefix="/tablet", tags=["tablet"])
@@ -22,7 +27,9 @@ router = APIRouter(prefix="/tablet", tags=["tablet"])
 
 @router.get("/assignment", response_model=AssignmentRead)
 def poll_assignment():
-    """Tablet poll target. No experimenter data or navigation here (P0.6)."""
+    """Tablet poll target. No experimenter data or navigation here (P0.6).
+    Records the poll so the preflight gate can tell a tablet is connected."""
+    mark_tablet_poll()
     return get_assignment()
 
 

@@ -31,6 +31,17 @@ def _capture_off_by_default(monkeypatch):
     monkeypatch.setattr(settings, "PERCEPTION_ENABLED", False, raising=False)
 
 
+@pytest.fixture(autouse=True)
+def _preflight_passes_by_default(monkeypatch):
+    """The P0.12 preflight gate would block session start when recording /
+    perception are off -- which is exactly how the suite runs. Neutralize the
+    gate for the general suite; the preflight tests override this to exercise it."""
+    monkeypatch.setattr(
+        "app.api.sessions.run_preflight",
+        lambda: {"ready": True, "blocking": [], "counts": {}, "checks": []},
+    )
+
+
 @pytest.fixture
 def _session_factory():
     """Fresh in-memory DB + schema, shared via a single connection (StaticPool).
