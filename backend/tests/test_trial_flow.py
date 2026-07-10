@@ -195,6 +195,72 @@ def test_trial_logged_timeline_event_records_the_step_count(client, protocol_id)
 
 # --- export -------------------------------------------------------------------
 
+# --- the shape the robot actually produces ------------------------------------
+
+# Taken from a real capture (bst-study feedback_training_data/failed_hp_sd/...):
+# trainer-side steps only (the child's behavior is scripted), and a state may
+# REPEAT when an utterance is not recognized -- here hp_sd is attempted twice.
+REAL_INTERACTION_HISTORY = [
+    {"trial_state": "sd", "text": "What am I holding?", "recognized_as": "Tacting and Labeling", "successful": True},
+    {"trial_state": "prompting", "text": "No. What am I holding?", "recognized_as": "Tacting and Labeling", "successful": True},
+    {"trial_state": "reinforcement", "text": "Good job.", "recognized_as": "Tacting and Labeling", "successful": True},
+    {"trial_state": "hp_sd", "text": "Can you dance?", "recognized_as": None, "successful": False},
+    {"trial_state": "hp_sd", "text": "Shake your head.", "recognized_as": "SD_1", "successful": True},
+    {"trial_state": "retry sd", "text": "What I hope", "recognized_as": None, "successful": False},
+]
+
+
+def _to_steps(history):
+    """The exact transform the BST side performs (see dtt_trial_integration_spec)."""
+    return [
+        {
+            "step_index": i,
+            "step_label": str(e["trial_state"]).replace(" ", "_"),  # "retry sd" -> "retry_sd"
+            "actor": "user",
+            "outcome": "recognized" if e.get("successful") else "not_recognized",
+            "detail": {"text": e.get("text"), "recognized_as": e.get("recognized_as")},
+        }
+        for i, e in enumerate(history, start=1)
+    ]
+
+
+def test_real_robot_interaction_history_is_ingestible(client, protocol_id):
+    """Trainer-side labels only, a repeated state, and 'retry sd' -> 'retry_sd'."""
+    sid = _session(client, protocol_id, pb_order_group=1)
+    steps = _to_steps(REAL_INTERACTION_HISTORY)
+    r = client.post(f"/sessions/{sid}/trials", json={
+        "loop_index": 4, "trial_name": "Tacting and Labeling",
+        "response_correctness": "no_response",
+        "reinforcement_delivered": True, "error_correction_delivered": True,
+        "steps": steps,
+    })
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["target_skill"] == "labeling"           # group 1 loop 4
+    assert body["instruction"] == "What am I holding?"
+
+    got = client.get(f"/sessions/{sid}/trials/{body['trial_id']}/steps").json()
+    assert [s["step_label"] for s in got] == [
+        "sd", "prompting", "reinforcement", "hp_sd", "hp_sd", "retry_sd"
+    ]
+    # the repeated hp_sd attempts are distinguishable by outcome
+    hp = [s for s in got if s["step_label"] == "hp_sd"]
+    assert [s["outcome"] for s in hp] == ["not_recognized", "recognized"]
+    assert "Shake your head." in hp[1]["raw_json"]      # detail stored verbatim
+
+
+def test_repeated_step_labels_are_allowed(client, protocol_id):
+    """Only step_index must be unique; a trainer may retry the same state."""
+    sid = _session(client, protocol_id)
+    steps = [
+        {"step_index": 1, "step_label": "sd", "actor": "user", "outcome": "not_recognized"},
+        {"step_index": 2, "step_label": "sd", "actor": "user", "outcome": "recognized"},
+        {"step_index": 3, "step_label": "reinforcement", "actor": "user"},
+    ]
+    r = client.post(f"/sessions/{sid}/trials", json=_robot_trial(1, steps))
+    assert r.status_code == 201, r.text
+
+
 def test_performance_events_are_exported(client, protocol_id, exports_tmp):
     sid = _session(client, protocol_id)
     client.post(f"/sessions/{sid}/trials", json=_robot_trial(1, CORRECT_FLOW))
