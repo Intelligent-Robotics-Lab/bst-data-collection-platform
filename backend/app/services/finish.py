@@ -25,7 +25,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models.dtt import DttTrial
-from app.models.questionnaire import Questionnaire, QuestionnaireResponse
+from app.models.questionnaire import QuestionnaireResponse
+from app.services.questionnaire import latest_questionnaires
 from app.models.session import StudySession
 from app.models.signals import MediaRecording, ParticipantSelfReport
 from app.models.sync import SyncGate
@@ -98,12 +99,11 @@ def _checkpoint_status(db: Session, sid: str, exp: dict, gate: SyncGate | None) 
 
 def _questionnaire_status(db: Session, sid: str, timepoint: str) -> list[dict]:
     """Registered questionnaires for a timepoint + whether a finalized (non-draft)
-    response exists for this session."""
-    regs = db.scalars(
-        select(Questionnaire)
-        .where(Questionnaire.timepoint == timepoint)
-        .order_by(Questionnaire.questionnaire_key)
-    ).all()
+    response exists for this session. One row per key (latest version), so a
+    version-bumped instrument is not listed twice."""
+    regs = sorted(
+        latest_questionnaires(db, timepoint), key=lambda r: r.questionnaire_key
+    )
     out: list[dict] = []
     for q in regs:
         submitted = (

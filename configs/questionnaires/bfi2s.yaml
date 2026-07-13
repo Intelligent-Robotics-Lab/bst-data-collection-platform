@@ -20,8 +20,10 @@
 questionnaire_key: bfi2s
 version: "1.0.0"
 title: "Big Five Inventory-2 Short Form (BFI-2-S)"
+intro: "These questions ask about different aspects of your personality: how you typically think, feel, and behave. There are no right or wrong answers."
 timepoint: pre
 scale_type: likert_5
+order_index: 3
 
 response_scale:
   type: likert

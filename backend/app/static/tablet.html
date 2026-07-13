@@ -20,6 +20,11 @@
     }
     .qtext { font-size: 1.1rem; margin: 0 0 0.7rem; }
     .req { color: #c00; }
+    .qhint { color: #667; font-size: 0.9rem; margin: -0.3rem 0 0.7rem; }
+    #form-intro { margin: 0 0 1rem; }
+    .intro-explain { font-size: 1.02rem; color: #234; background: #eef4fb; border: 1px solid #d6e4f2;
+      border-radius: 10px; padding: 0.7rem 0.9rem; margin: 0 0 0.6rem; }
+    .intro-instruction { font-size: 1rem; color: #333; margin: 0 0 0.4rem; }
     /* Likert / choice options */
     .opts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .opt {
@@ -57,6 +62,7 @@
     <div id="status">Connecting…</div>
     <div id="form-root" hidden>
       <h1 id="form-title"></h1>
+      <div id="form-intro"></div>
       <p class="sub" id="form-sub"></p>
       <div class="saving" id="saving"></div>
       <div id="items"></div>
@@ -111,6 +117,7 @@
       $("status").hidden = true;
       $("form-root").hidden = false;
       $("form-title").textContent = title || "";
+      $("form-intro").innerHTML = "";  // cleared per form; questionnaires repopulate it
       $("form-sub").textContent = sub || "";
       $("items").innerHTML = "";
       $("submit-btn").disabled = false;
@@ -122,6 +129,17 @@
       const v = a.questionnaire_version ? `?version=${encodeURIComponent(a.questionnaire_version)}` : "";
       config = await (await fetch(`${API}/questionnaires/${a.questionnaire_key}/config${v}`)).json();
       showForm(config.title || a.questionnaire_key, "Please answer every required question.");
+
+      // Brief explanation of this questionnaire, then its official instruction.
+      const intro = $("form-intro"); intro.innerHTML = "";
+      if (config.intro) {
+        const p = document.createElement("p"); p.className = "intro-explain";
+        p.textContent = config.intro; intro.appendChild(p);
+      }
+      if (config.instruction) {
+        const p = document.createElement("p"); p.className = "intro-instruction";
+        p.textContent = config.instruction; intro.appendChild(p);
+      }
 
       // Restore any saved answers for this session+questionnaire.
       try {
@@ -149,6 +167,10 @@
       q.className = "qtext";
       q.innerHTML = (it.text || it.item_id) + (it.required ? ' <span class="req">*</span>' : "");
       card.appendChild(q);
+      if (it.hint) {
+        const h = document.createElement("p"); h.className = "qhint";
+        h.textContent = it.hint; card.appendChild(h);
+      }
 
       const setVal = (val, render) => { answers[it.item_id] = val; render(); scheduleSave(); };
 

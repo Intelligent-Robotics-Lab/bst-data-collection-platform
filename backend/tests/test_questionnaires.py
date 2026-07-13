@@ -27,16 +27,94 @@ def test_registry_lists_real_instruments(client, questionnaires):
     assert rows["rosas_trainer"]["item_count"] == 18
     assert rows["rosas_child"]["item_count"] == 18
     assert rows["rosas_trainer"]["timepoint"] == "post"
-    # Placeholders are present.
-    assert "dqel" in rows and "manipulation_checks" in rows
+    # D-QEL is a real 13-item instrument; manipulation_checks stays a placeholder.
+    assert rows["dqel"]["item_count"] == 13
+    assert rows["dqel"]["scale_type"] == "likert_5"
+    assert rows["dqel"]["version"] == "1.0.0"
+    assert rows["manipulation_checks"]["version"] == "0.1.0-placeholder"
 
 
 def test_pre_post_filter(client, questionnaires):
     pre = {r["questionnaire_key"] for r in client.get("/questionnaires?timepoint=pre").json()}
     post = {r["questionnaire_key"] for r in client.get("/questionnaires?timepoint=post").json()}
     assert {"demographics", "erq", "bfi2s"} <= pre
-    assert {"rosas_trainer", "rosas_child"} <= post
+    assert {"rosas_trainer", "rosas_child", "dqel", "manipulation_checks"} <= post
     assert "erq" not in post
+
+
+def test_pre_questionnaires_start_with_demographics(client, questionnaires):
+    """Onboarding pushes pre-questionnaires in list order; demographics is first."""
+    pre = [r["questionnaire_key"] for r in client.get("/questionnaires?timepoint=pre").json()]
+    assert pre[0] == "demographics"
+    assert pre == ["demographics", "erq", "bfi2s"]
+
+
+def test_render_spec_exposes_intro_and_instruction(client, questionnaires):
+    """Every questionnaire carries a plain-language intro; copyrighted ones also
+    carry their official instruction (merged from the gitignored local file)."""
+    for key in ("demographics", "erq", "bfi2s", "rosas_trainer", "dqel"):
+        cfg = client.get(f"/questionnaires/{key}/config").json()
+        assert cfg["intro"], f"{key} missing intro"
+        assert isinstance(cfg["intro"], str) and len(cfg["intro"]) > 10
+    # demographics defines its instruction inline (own instrument)
+    assert client.get("/questionnaires/demographics/config").json()["instruction"]
+
+
+def test_demographics_has_teaching_and_family_items_with_hints(client, questionnaires):
+    items = {it["item_id"]: it for it in client.get("/questionnaires/demographics/config").json()["items"]}
+    assert "dem_teaching_experience" in items
+    assert "dem_family_disability_experience" in items
+    # both carry a clarifying hint for the participant
+    assert items["dem_teaching_experience"].get("hint")
+    assert items["dem_family_disability_experience"].get("hint")
+    # the sensitive question offers a decline option
+    vals = {o["value"] for o in items["dem_family_disability_experience"]["options"]}
+    assert "no_answer" in vals
+
+
+def test_new_demographic_items_accept_answers(client, questionnaires):
+    client.post("/participants", json={"participant_id": "DZ"})
+    client.post("/sessions", json={"session_id": "DZ_S1", "participant_id": "DZ", "scenario_type": "bst_dtt"})
+    r = client.post("/sessions/DZ_S1/questionnaires/demographics/autosave", json={"answers": {
+        "dem_teaching_experience": "yes",
+        "dem_teaching_experience_detail": "Two years tutoring high-school math.",
+        "dem_family_disability_experience": "no_answer",
+    }})
+    assert r.status_code == 200, r.text
+
+
+def test_dqel_renders_13_real_items(client, questionnaires):
+    cfg = client.get("/questionnaires/dqel/config").json()
+    assert len(cfg["items"]) == 13
+    assert cfg["response_scale"]["min"] == 1 and cfg["response_scale"]["max"] == 5
+    # item text is a string (verbatim text, if present, comes from the gitignored
+    # local file -- never asserted here so the test needs no copyrighted text)
+    assert all(isinstance(it["text"], str) for it in cfg["items"])
+
+
+def test_list_returns_one_row_per_key_latest_version(client, _session_factory):
+    """A version bump leaves the old row registered (lower id); the list must not
+    show a key twice -- only the latest (highest-id) version."""
+    from app.models.questionnaire import Questionnaire
+
+    db = _session_factory()
+    try:
+        # old registration first (lower id), then the bumped version (higher id)
+        db.add(Questionnaire(questionnaire_key="dqel", version="0.1.0-placeholder",
+                             title="old", scale_type="likert_5", item_count=3,
+                             timepoint="post", config_path="", config_hash="old"))
+        db.commit()
+        db.add(Questionnaire(questionnaire_key="dqel", version="1.0.0",
+                             title="new", scale_type="likert_5", item_count=13,
+                             timepoint="post", config_path="", config_hash="new"))
+        db.commit()
+    finally:
+        db.close()
+
+    post = [r for r in client.get("/questionnaires?timepoint=post").json()
+            if r["questionnaire_key"] == "dqel"]
+    assert len(post) == 1
+    assert post[0]["version"] == "1.0.0"
 
 
 def test_config_render_spec(client, questionnaires):

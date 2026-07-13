@@ -8,8 +8,10 @@
 questionnaire_key: manipulation_checks
 version: "0.1.0-placeholder"
 title: "Manipulation Checks and Post-Session Perceptions (placeholder)"
+intro: "A few short check questions about the interaction you just completed."
 timepoint: post
 scale_type: mixed
+order_index: 13
 
 response_scale:
   type: likert
