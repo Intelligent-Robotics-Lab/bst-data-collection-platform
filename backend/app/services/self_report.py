@@ -24,16 +24,13 @@ from app.models.session import StudySession
 from app.models.signals import ParticipantSelfReport, SelfReportDraft
 from app.services.timeline import compute_session_time_ms, record_timeline_event
 
+# Only the PAD affect dimensions are collected. The other six slider columns
+# remain in the schema (nullable) for provenance/compatibility, but are not
+# collected here, so they stay NULL (honestly "not collected", never a fake 0).
 SLIDER_FIELDS = (
     "pleasure",
     "arousal",
     "dominance",
-    "confidence",
-    "frustration",
-    "engagement",
-    "perceived_challenge",
-    "perceived_support",
-    "cognitive_load",
 )
 
 # The context fields that, together with session_id, uniquely identify a draft.

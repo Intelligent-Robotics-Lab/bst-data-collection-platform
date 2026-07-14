@@ -395,16 +395,11 @@
     }
 
     // ---- Self-report ----
+    // PAD affect model only (Pleasure, Arousal, Dominance).
     const SLIDERS = [
       ["pleasure", "Unpleasant", "Pleasant"],
       ["arousal", "Calm", "Excited"],
       ["dominance", "Controlled", "In control"],
-      ["confidence", "Not confident", "Very confident"],
-      ["frustration", "Not frustrated", "Very frustrated"],
-      ["engagement", "Disengaged", "Engaged"],
-      ["perceived_challenge", "Too easy", "Too hard"],
-      ["perceived_support", "Unsupported", "Supported"],
-      ["cognitive_load", "Low effort", "High effort"],
     ];
 
     async function renderSelfReport(a) {

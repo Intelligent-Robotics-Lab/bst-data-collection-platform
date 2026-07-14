@@ -39,15 +39,10 @@ class SelfReportContext(BaseModel):
 
 class SelfReportCreate(SelfReportContext):
     # nine bipolar sliders, [-5, +5]
+    # PAD affect model only. The other six dimensions are no longer collected.
     pleasure: float = _SLIDER
     arousal: float = _SLIDER
     dominance: float = _SLIDER
-    confidence: float = _SLIDER
-    frustration: float = _SLIDER
-    engagement: float = _SLIDER
-    perceived_challenge: float = _SLIDER
-    perceived_support: float = _SLIDER
-    cognitive_load: float = _SLIDER
 
 
 class SelfReportDraftSummary(BaseModel):

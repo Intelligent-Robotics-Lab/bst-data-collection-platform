@@ -31,15 +31,17 @@ def test_self_report_writes_row_and_timeline(client):
     sid = _running(client)
     r = client.post(
         f"/sessions/{sid}/self-reports",
-        json=_ctx(pleasure=3.5, arousal=-2.0, cognitive_load=4.1),
+        json=_ctx(pleasure=3.5, arousal=-2.0, dominance=1.0),
     )
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["source"] == "sr"
     assert body["pleasure"] == 3.5
     assert body["arousal"] == -2.0
-    # unset sliders default to the true-zero center
-    assert body["confidence"] == 0.0
+    assert body["dominance"] == 1.0
+    # PAD only: the removed dimensions are not collected (NULL, not a fake 0)
+    assert body["confidence"] is None
+    assert body["cognitive_load"] is None
     assert body["loop_index"] == 2 and body["phase"] == "rehearsal"
 
     tl = client.get(f"/sessions/{sid}/timeline", params={"format": "json"}).json()
@@ -103,8 +105,10 @@ def test_autosave_then_restore_returns_sliders(client):
     assert got["found"] is True
     assert got["sliders"]["pleasure"] == 2.5
     assert got["sliders"]["arousal"] == -1.0
-    # an untouched slider keeps its true-zero center
-    assert got["sliders"]["confidence"] == 0.0
+    # an untouched PAD slider keeps its true-zero center
+    assert got["sliders"]["dominance"] == 0.0
+    # PAD only: removed dimensions are not part of the draft
+    assert set(got["sliders"]) == {"pleasure", "arousal", "dominance"}
 
 
 def test_autosave_does_not_write_raw_row_or_timeline(client):

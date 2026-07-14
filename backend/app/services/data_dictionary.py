@@ -199,9 +199,12 @@ Participant self-reports (PAD + ratings), continuous bipolar sliders in [-5, +5]
   Baseline self-reports carry `function_class='baseline'`.
 - `before_after_robot_action` - before / after / na.
 - `source` - 'sr' (self-report). ML affect lives in perception_events, not here.
-- Sliders: `pleasure` (==valence), `arousal`, `dominance`, `confidence`,
-  `frustration`, `engagement`, `perceived_challenge`, `perceived_support`,
-  `cognitive_load`.
+- Sliders (COLLECTED): the PAD affect model only - `pleasure` (==valence),
+  `arousal`, `dominance`. Continuous bipolar in [-5, +5], true-zero center.
+- Sliders (RETAINED, NOT collected): `confidence`, `frustration`, `engagement`,
+  `perceived_challenge`, `perceived_support`, `cognitive_load` remain as columns
+  for schema stability but are **NULL** (not a fake 0) - they are not asked in
+  this version of the self-report.
 - `trial_id`, `raw_json`, `timestamp_utc`, `session_time_ms`, `created_at`.
 
 ### media_recordings.csv
