@@ -51,6 +51,23 @@
     button.submit:active { background: var(--accent-dark); }
     button.submit:disabled { background: #9bb; cursor: default; }
     #status { text-align: center; padding: 3rem 1rem; color: #667; font-size: 1.15rem; }
+    /* Participant progress screen (shown between forms) */
+    #progress-root { padding: 1.5rem 0.5rem; text-align: center; }
+    .pg-phase { font-size: 2.1rem; font-weight: 700; color: var(--accent-dark); margin: 0.4rem 0 0.2rem; }
+    .pg-sub { color: #556; font-size: 1.05rem; margin: 0 0 1.4rem; }
+    .pg-steps { display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap; margin: 0 0 1.6rem; }
+    .pg-step { flex: 1 1 0; max-width: 9rem; min-width: 5rem; padding: 0.55rem 0.3rem; border-radius: 10px;
+      border: 2px solid #dce2e8; background: #fff; color: #8a97a3; font-size: 0.95rem; font-weight: 600; }
+    .pg-step.done { border-color: var(--accent); background: #e8f7ef; color: var(--accent-dark); }
+    .pg-step.current { border-color: var(--accent-dark); background: #fff; color: var(--accent-dark);
+      box-shadow: 0 0 0 3px rgba(17,136,120,0.15); }
+    .pg-rounds-label { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.6rem; color: #234; }
+    .pg-dots { display: flex; justify-content: center; gap: 0.7rem; flex-wrap: wrap; margin: 0 0 1.6rem; }
+    .pg-dot { width: 2.1rem; height: 2.1rem; border-radius: 50%; border: 3px solid #cdd5db; background: #fff; }
+    .pg-dot.done { background: var(--accent); border-color: var(--accent); }
+    .pg-dot.current { border-color: var(--accent-dark); box-shadow: 0 0 0 4px rgba(17,136,120,0.15); }
+    .pg-message { font-size: 1.35rem; color: var(--accent-dark); font-weight: 600; margin: 1.2rem 0 0; }
+    .pg-done-emoji { font-size: 3rem; margin: 0.5rem 0; }
     #msg { text-align: center; min-height: 1.4rem; font-size: 1rem; margin-top: 0.6rem; }
     .err { color: #c00; }
     .ok { color: var(--accent-dark); }
@@ -60,6 +77,7 @@
 <body>
   <div class="wrap">
     <div id="status">Connecting…</div>
+    <div id="progress-root" hidden></div>
     <div id="form-root" hidden>
       <h1 id="form-title"></h1>
       <div id="form-intro"></div>
@@ -95,11 +113,18 @@
       } catch (e) {
         // Backend momentarily unreachable: keep the current screen, keep polling.
       } finally {
+        // While no form is up, keep the progress screen live (its data changes as
+        // the robot advances, even though the assignment revision does not).
+        if (showingProgress) refreshProgress();
         setTimeout(poll, POLL_MS);
       }
     }
 
     async function render(a) {
+      // A new assignment supersedes any pending "return to progress" from a
+      // previous form's submit -- otherwise that stale timer would clear THIS
+      // form (e.g. the next stage's self-report) a couple seconds after it opens.
+      if (pendingReturnTimer) { clearTimeout(pendingReturnTimer); pendingReturnTimer = null; }
       current = a; config = null; answers = {}; submitted = false;
       $("msg").textContent = ""; $("msg").className = ""; $("saving").textContent = "";
       if (a.form_type === "questionnaire") return renderQuestionnaire(a);
@@ -107,14 +132,95 @@
       return renderIdle(a);
     }
 
+    // ---- Progress screen (between forms) ----
+    let showingProgress = false;
+    let pendingReturnTimer = null;   // scheduled return-to-progress after a submit
+    let submittedRevision = null;    // the assignment revision that submit ran against
+
     function renderIdle(a) {
       $("form-root").hidden = true;
-      $("status").hidden = false;
-      $("status").textContent = a.message || "Please wait for the next form.";
+      $("status").hidden = true;
+      $("progress-root").hidden = false;
+      showingProgress = true;
+      refreshProgress();
     }
+
+    // After a form is finished, clear the pushed assignment and show progress.
+    // Clearing bumps the assignment revision, so a page reload also lands on the
+    // progress screen (not the already-submitted form).
+    async function returnToProgress() {
+      pendingReturnTimer = null;
+      try {
+        // Only clear if the tablet is STILL showing the form we submitted. If the
+        // robot already pushed the next form (revision changed), leave it up.
+        const a = await (await fetch(`${API}/tablet/assignment`)).json();
+        if (a.revision !== submittedRevision) return;
+        const cleared = await (await fetch(`${API}/tablet/clear`, { method: "POST" })).json();
+        shownRevision = cleared.revision; current = cleared;
+        renderIdle(current);
+      } catch (e) { /* transient: leave the screen; poll will recover */ }
+    }
+
+    async function refreshProgress() {
+      try {
+        const p = await (await fetch(`${API}/progress`)).json();
+        renderProgress(p);
+      } catch (e) { /* keep the last progress view on a blip */ }
+    }
+
+    function renderProgress(p) {
+      const root = $("progress-root");
+      if (p.phase === "complete") {
+        root.innerHTML =
+          '<div class="pg-phase">Thank you</div>' +
+          '<p class="pg-sub">' + esc(p.message || "") + '</p>';
+        return;
+      }
+      // Before the robot session begins: participant is completing questionnaires.
+      if (!p.active) {
+        root.innerHTML =
+          '<div class="pg-phase">Welcome</div>' +
+          '<p class="pg-sub">' + esc(p.message || "") + '</p>';
+        return;
+      }
+      // Active interaction phase: neutral progress only. No affective message,
+      // so the tablet never colours the participant's emotional response.
+      const steps = (p.phases || []).map((ph, idx) => {
+        let cls = "pg-step";
+        if (ph.key === p.phase) cls += " current";
+        else if (idx < p.phase_index) cls += " done";
+        return '<div class="' + cls + '">' + esc(ph.label) + '</div>';
+      }).join("");
+
+      let rounds = "";
+      if (p.phase === "rehearsal") {
+        const total = p.rounds_total || 6;
+        const cur = Math.min(Math.max(p.round || 1, 1), total);   // current SD
+        const done = p.rounds_done || 0;                          // SDs fully finished
+        let dots = "";
+        for (let i = 1; i <= total; i++) {
+          let c = "pg-dot";
+          if (i <= done) c += " done";
+          else if (i === cur) c += " current";
+          dots += '<div class="' + c + '"></div>';
+        }
+        rounds =
+          '<div class="pg-rounds-label">Round ' + cur + ' of ' + total + '</div>' +
+          '<div class="pg-dots">' + dots + '</div>';
+      }
+
+      root.innerHTML =
+        '<div class="pg-phase">' + esc(p.phase_label || "") + '</div>' +
+        '<div class="pg-steps">' + steps + '</div>' +
+        rounds;
+    }
+
+    function esc(s) { return (s == null ? "" : String(s)).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
     function showForm(title, sub) {
       $("status").hidden = true;
+      $("progress-root").hidden = true;
+      showingProgress = false;
       $("form-root").hidden = false;
       $("form-title").textContent = title || "";
       $("form-intro").innerHTML = "";  // cleared per form; questionnaires repopulate it
@@ -392,6 +498,12 @@
         submitted = true;
         $("submit-btn").textContent = "Submitted";
         $("msg").textContent = okText; $("msg").className = "ok";
+        // Show the thank-you briefly, then return to the progress screen so the
+        // participant isn't left on a finished form. Remember which assignment we
+        // submitted so a later-arriving form is never cleared by this timer.
+        submittedRevision = shownRevision;
+        if (pendingReturnTimer) clearTimeout(pendingReturnTimer);
+        pendingReturnTimer = setTimeout(returnToProgress, 2500);
       } else {
         const err = await res.json().catch(() => ({}));
         const detail = typeof err.detail === "string" ? err.detail : "Please check your answers.";
