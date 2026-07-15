@@ -219,17 +219,25 @@
       let rounds = "", now = "";
       if (p.phase === "rehearsal") {
         const total = p.rounds_total || 6;
-        const cur = Math.min(Math.max(p.round || 1, 1), total);   // current SD
-        const done = p.rounds_done || 0;                          // SDs fully finished
+        // Prefer the robot's LIVE monitor numbers (accurate to the SD in progress).
+        // The gate-derived index lags -- a loop gate only opens after the child
+        // responds -- so fall back to it only when the monitor isn't available.
+        const doneSet = (monitor && Array.isArray(monitor.completed_sd_numbers))
+          ? monitor.completed_sd_numbers : null;
+        const cur = (monitor && monitor.trial_sd_number)
+          ? monitor.trial_sd_number
+          : Math.min(Math.max(p.round || 1, 1), total);
         let dots = "";
         for (let i = 1; i <= total; i++) {
+          // done -> fully coloured; current -> highlighted (not filled); rest dim.
+          const isDone = doneSet ? doneSet.includes(i) : (i <= (p.rounds_done || 0));
           let c = "pg-dot";
-          if (i <= done) c += " done";
+          if (isDone) c += " done";
           else if (i === cur) c += " current";
           dots += '<div class="' + c + '"></div>';
         }
         rounds =
-          '<div class="pg-rounds-label">Round ' + cur + ' of ' + total + '</div>' +
+          '<div class="pg-rounds-label">SD ' + cur + ' of ' + total + '</div>' +
           '<div class="pg-dots">' + dots + '</div>';
 
         // Live Current SD + Trial State from the robot's monitor (when present).
