@@ -68,6 +68,11 @@
     .pg-dot.current { border-color: var(--accent-dark); box-shadow: 0 0 0 4px rgba(17,136,120,0.15); }
     .pg-message { font-size: 1.35rem; color: var(--accent-dark); font-weight: 600; margin: 1.2rem 0 0; }
     .pg-done-emoji { font-size: 3rem; margin: 0.5rem 0; }
+    .pg-now { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; margin: 0.2rem 0 1.4rem; }
+    .pg-now .card2 { flex: 1 1 12rem; max-width: 18rem; border: 1px solid #dce2e8; border-radius: 12px;
+      background: #fff; padding: 0.7rem 0.9rem; }
+    .pg-now .lab { color: #8a97a3; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    .pg-now .val { font-size: 1.3rem; font-weight: 700; color: #223; margin-top: 0.15rem; }
     #msg { text-align: center; min-height: 1.4rem; font-size: 1rem; margin-top: 0.6rem; }
     .err { color: #c00; }
     .ok { color: var(--accent-dark); }
@@ -161,14 +166,33 @@
       } catch (e) { /* transient: leave the screen; poll will recover */ }
     }
 
+    // Friendly labels for the robot's within-trial state (mirrors the bst monitor).
+    const TRIAL_STATE_LABELS = {
+      "SD": "Instruction (SD)", "sd": "Instruction (SD)",
+      "KID_BEHAVIOR_1": "Child responding", "kid behavior 1": "Child responding",
+      "REINFORCEMENT": "Reinforcement", "reinforcement": "Reinforcement",
+      "PROMPTING": "Prompting", "prompting": "Prompting",
+      "KID_BEHAVIOR_2": "Child responding", "kid behavior 2": "Child responding",
+      "HP_SD": "High-probability SD", "hp_sd": "High-probability SD",
+      "KID_BEHAVIOR_HP": "Child responding", "kid behavior HP": "Child responding",
+      "RETRY_SD": "Retry SD", "retry sd": "Retry SD",
+      "KID_BEHAVIOR_RETRY": "Child responding", "kid behavior retry": "Child responding",
+      "FEEDBACK": "Feedback", "feedback": "Feedback",
+    };
+
     async function refreshProgress() {
       try {
-        const p = await (await fetch(`${API}/progress`)).json();
-        renderProgress(p);
+        // Progress (from gates) + the live monitor (Current SD + Trial State, from
+        // the robot). Both are cheap and same-origin.
+        const [p, m] = await Promise.all([
+          (await fetch(`${API}/progress`)).json(),
+          (await fetch(`${API}/monitor`)).json().catch(() => ({ monitor: null })),
+        ]);
+        renderProgress(p, m && m.monitor);
       } catch (e) { /* keep the last progress view on a blip */ }
     }
 
-    function renderProgress(p) {
+    function renderProgress(p, monitor) {
       const root = $("progress-root");
       if (p.phase === "complete") {
         root.innerHTML =
@@ -192,7 +216,7 @@
         return '<div class="' + cls + '">' + esc(ph.label) + '</div>';
       }).join("");
 
-      let rounds = "";
+      let rounds = "", now = "";
       if (p.phase === "rehearsal") {
         const total = p.rounds_total || 6;
         const cur = Math.min(Math.max(p.round || 1, 1), total);   // current SD
@@ -207,12 +231,23 @@
         rounds =
           '<div class="pg-rounds-label">Round ' + cur + ' of ' + total + '</div>' +
           '<div class="pg-dots">' + dots + '</div>';
+
+        // Live Current SD + Trial State from the robot's monitor (when present).
+        const sd = monitor && (monitor.trial_name || monitor.trial_sd);
+        const stRaw = monitor && monitor.trial_state;
+        const st = stRaw ? (TRIAL_STATE_LABELS[stRaw] || TRIAL_STATE_LABELS[String(stRaw).toLowerCase()] || stRaw) : null;
+        if (sd || st) {
+          now = '<div class="pg-now">' +
+            (sd ? '<div class="card2"><div class="lab">Current SD</div><div class="val">' + esc(sd) + '</div></div>' : '') +
+            (st ? '<div class="card2"><div class="lab">Trial State</div><div class="val">' + esc(st) + '</div></div>' : '') +
+            '</div>';
+        }
       }
 
       root.innerHTML =
         '<div class="pg-phase">' + esc(p.phase_label || "") + '</div>' +
         '<div class="pg-steps">' + steps + '</div>' +
-        rounds;
+        rounds + now;
     }
 
     function esc(s) { return (s == null ? "" : String(s)).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }

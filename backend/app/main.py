@@ -19,6 +19,7 @@ from app.api import (
     finish,
     health,
     launch,
+    monitor,
     notes,
     participants,
     perception,
@@ -109,6 +110,7 @@ app.include_router(fidelity.router)
 app.include_router(finish.router)
 app.include_router(preflight.router)
 app.include_router(progress.router)
+app.include_router(monitor.router)
 
 # Minimal participant-intake UI (interim; superseded by the React+Vite app in a
 # later phase). Served at /ui/.
