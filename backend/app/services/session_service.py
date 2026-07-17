@@ -22,6 +22,7 @@ from app.models.session import StudySession
 from app.services import perception, recording
 from app.services.backup import backup_database
 from app.services.dtt_loops import generate_dtt_loops
+from app.services.monitor import clear_monitor
 from app.services.timeline import record_timeline_event
 
 logger = logging.getLogger("bst.session")
@@ -162,6 +163,14 @@ def apply_transition(db: Session, session: StudySession, action: str) -> StudySe
             perception.stop_session_perception(db, session)
     except Exception:  # noqa: BLE001
         logger.exception("Perception hook failed on '%s' for %s", action, session.session_id)
+
+    # The live monitor mirror is process-global and outlives a session, so a new
+    # session would otherwise inherit the SD/trial_state the previous one ended
+    # on until the robot next pushes. Clear it as the session goes live so the
+    # tablet starts fresh from SD 1, and again when a session ends so the value
+    # it stopped on does not linger for the next one.
+    if action in ("start", "stop", "complete"):
+        clear_monitor()
 
     # Preserve every finished session immediately (non-destructive; never raises).
     if action == "complete":

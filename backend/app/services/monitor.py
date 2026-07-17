@@ -30,6 +30,22 @@ def set_monitor(monitor: dict) -> dict:
         return dict(_state)
 
 
+def clear_monitor() -> dict:
+    """Drop any stored monitor state so the next reader sees a fresh mirror.
+
+    The mirror is a process-global that outlives a single session; without this,
+    a new session inherits the SD/trial_state the previous session ended on until
+    the robot happens to push again. Cleared on each session lifecycle transition
+    so the tablet starts every session from SD 1 (the gate-derived fallback) with
+    no stale Current SD / Trial State cards.
+    """
+    with _lock:
+        _state["revision"] += 1
+        _state["updated_at"] = now_utc_iso()
+        _state["monitor"] = None
+        return dict(_state)
+
+
 def get_monitor() -> dict:
     with _lock:
         return dict(_state)
