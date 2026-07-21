@@ -10,14 +10,41 @@ from app.core.config import settings
 from app.services import preflight as pf
 
 
-class _FakeSource:
-    """Stand-in for HttpPollingSource in the perception reachability check."""
+_STREAMING_GATEWAY = {
+    "session": {"connected": True, "pipeline_state": "playing"},
+    "video": {"forwarded_frame_count": 1500, "last_sample_timestamp_utc": "2026-07-17T12:00:00Z"},
+    "audio": {"forwarded_audio_chunk_count": 900, "last_sample_timestamp_utc": "2026-07-17T12:00:00Z"},
+}
+_DISCONNECTED_GATEWAY = {
+    "session": {"connected": False, "pipeline_state": None, "last_error": "gateway link lost"},
+    "video": {"forwarded_frame_count": 0},
+    "audio": {"forwarded_audio_chunk_count": 0},
+}
+_IDLE_GATEWAY = {
+    "session": {"connected": True, "pipeline_state": "playing"},
+    "video": {"forwarded_frame_count": 0, "last_sample_timestamp_utc": None},
+    "audio": {"forwarded_audio_chunk_count": 0, "last_sample_timestamp_utc": None},
+}
 
-    def __init__(self, *_a, healthy=True, **_k):
+
+class _FakeSource:
+    """Stand-in for HttpPollingSource in the perception reachability check.
+
+    ``gateway`` is the parsed /debug/gateway-status body the source returns
+    (default: a connected, actively streaming gateway); use ``_MISSING`` to model
+    a None return (endpoint absent/unreachable)."""
+
+    _MISSING = object()
+
+    def __init__(self, *_a, healthy=True, gateway=None, **_k):
         self._healthy = healthy
+        self._gateway = _STREAMING_GATEWAY if gateway is None else gateway
 
     def health(self):
         return self._healthy
+
+    def gateway_status(self):
+        return None if self._gateway is self._MISSING else self._gateway
 
     def close(self):
         pass
@@ -77,6 +104,54 @@ def test_perception_unreachable_blocks(monkeypatch):
     report = pf.run_preflight()
     assert _by_id(report)["perception_reachable"]["status"] == "fail"
     assert "perception_reachable" in {c["id"] for c in report["blocking"]}
+
+
+def _perception_up(monkeypatch, gateway):
+    """Recording OK + orchestrator /health OK, with a given gateway payload."""
+    monkeypatch.setattr(settings, "RECORDING_ENABLED", True)
+    monkeypatch.setattr(settings, "RECORDING_USE_TEST_SOURCE", True)
+    monkeypatch.setattr(settings, "PERCEPTION_ENABLED", True)
+    monkeypatch.setattr(
+        pf, "HttpPollingSource",
+        lambda *a, **k: _FakeSource(healthy=True, gateway=gateway),
+    )
+
+
+def test_gateway_disconnected_blocks_even_when_health_is_green(monkeypatch):
+    # The reported bug: /health returns 200 (reachable=pass) but the media gateway
+    # is disconnected, so the session would record no perception data.
+    _perception_up(monkeypatch, _DISCONNECTED_GATEWAY)
+    report = pf.run_preflight()
+    checks = _by_id(report)
+    assert checks["perception_reachable"]["status"] == "pass"
+    gw = checks["perception_gateway"]
+    assert gw["status"] == "fail" and gw["required"] is True
+    assert "perception_gateway" in {c["id"] for c in report["blocking"]}
+    assert report["ready"] is False
+
+
+def test_gateway_connected_and_streaming_passes(monkeypatch):
+    _perception_up(monkeypatch, _STREAMING_GATEWAY)
+    gw = _by_id(pf.run_preflight())["perception_gateway"]
+    assert gw["status"] == "pass"
+
+
+def test_gateway_connected_but_no_samples_warns_not_blocks(monkeypatch):
+    # Link up but nothing forwarded yet: advisory, never blocking.
+    _perception_up(monkeypatch, _IDLE_GATEWAY)
+    report = pf.run_preflight()
+    gw = _by_id(report)["perception_gateway"]
+    assert gw["status"] == "warn" and gw["required"] is False
+    assert "perception_gateway" not in {c["id"] for c in report["blocking"]}
+
+
+def test_gateway_endpoint_absent_warns_not_blocks(monkeypatch):
+    # Older orchestrator without /debug/gateway-status: cannot verify, so advise.
+    _perception_up(monkeypatch, _FakeSource._MISSING)
+    report = pf.run_preflight()
+    gw = _by_id(report)["perception_gateway"]
+    assert gw["status"] == "warn" and gw["required"] is False
+    assert "perception_gateway" not in {c["id"] for c in report["blocking"]}
 
 
 def test_low_disk_blocks(monkeypatch, tmp_path):

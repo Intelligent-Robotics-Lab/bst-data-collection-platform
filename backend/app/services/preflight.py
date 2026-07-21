@@ -124,6 +124,8 @@ def _perception_checks() -> list[dict]:
     if not enabled:
         checks.append(_check("perception_reachable", "Perception orchestrator reachable",
                              "perception", "na", False, "skipped (perception disabled)"))
+        checks.append(_check("perception_gateway", "Perception gateway streaming",
+                             "perception", "na", False, "skipped (perception disabled)"))
         return checks
 
     source = HttpPollingSource(
@@ -131,18 +133,79 @@ def _perception_checks() -> list[dict]:
     )
     try:
         reachable = source.health()
+        checks.append(_check(
+            "perception_reachable", "Perception orchestrator reachable", "perception",
+            "pass" if reachable else "fail", required=True,
+            detail=(
+                f"GET {settings.PERCEPTION_BASE_URL}/health OK"
+                if reachable
+                else f"{settings.PERCEPTION_BASE_URL}/health did not return 200"
+            ),
+        ))
+        # /health only proves the orchestrator process is alive; its media gateway
+        # can be disconnected (or connected but forwarding no samples) while
+        # /health still returns 200 -- a session would then run and record NO
+        # perception data despite a green checklist. Only meaningful to probe when
+        # the orchestrator itself answered.
+        if reachable:
+            checks.append(_perception_gateway_check(source))
     finally:
         source.close()
-    checks.append(_check(
-        "perception_reachable", "Perception orchestrator reachable", "perception",
-        "pass" if reachable else "fail", required=True,
-        detail=(
-            f"GET {settings.PERCEPTION_BASE_URL}/health OK"
-            if reachable
-            else f"{settings.PERCEPTION_BASE_URL}/health did not return 200"
-        ),
-    ))
     return checks
+
+
+def _perception_gateway_check(source) -> dict:
+    """Verify the orchestrator's media gateway is actually connected and streaming,
+    using the same /debug/gateway-status signal its live dashboard shows.
+
+    - gateway absent/unreachable/unparseable -> WARN (non-contract debug endpoint;
+      an older orchestrator may not expose it, so we advise rather than block).
+    - session.connected false -> FAIL (blocking): perception is dead; no data will
+      be recorded even though /health is green.
+    - connected but zero frames/audio forwarded yet -> WARN: link is up but nothing
+      is streaming; the operator should confirm on /debug/live before starting.
+    """
+    data = source.gateway_status()
+    if data is None:
+        return _check("perception_gateway", "Perception gateway streaming", "perception",
+                      "warn", False,
+                      "could not read /debug/gateway-status; cannot verify the media gateway")
+
+    session = data.get("session") or {}
+    if not session.get("connected"):
+        return _check(
+            "perception_gateway", "Perception gateway streaming", "perception",
+            "fail", required=True,
+            detail=(
+                "orchestrator is up but its media gateway is DISCONNECTED "
+                f"(pipeline_state={session.get('pipeline_state')!r}, "
+                f"last_error={session.get('last_error')!r}) -- "
+                "NO perception data will be recorded"
+            ),
+        )
+
+    video = data.get("video") or {}
+    audio = data.get("audio") or {}
+    frames = video.get("forwarded_frame_count") or 0
+    chunks = audio.get("forwarded_audio_chunk_count") or 0
+    last_sample = video.get("last_sample_timestamp_utc") or audio.get("last_sample_timestamp_utc")
+    if not last_sample and not frames and not chunks:
+        return _check(
+            "perception_gateway", "Perception gateway streaming", "perception",
+            "warn", False,
+            "gateway session connected but 0 frames / 0 audio chunks forwarded so "
+            "far (no samples seen); perception may not be streaming -- confirm on "
+            "/debug/live before starting",
+        )
+
+    return _check(
+        "perception_gateway", "Perception gateway streaming", "perception",
+        "pass", required=True,
+        detail=(
+            f"gateway connected; {frames} frames / {chunks} audio chunks forwarded "
+            f"(last sample {last_sample})"
+        ),
+    )
 
 
 def _storage_check() -> dict:
