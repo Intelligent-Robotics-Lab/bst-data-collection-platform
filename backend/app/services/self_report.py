@@ -1,10 +1,13 @@
 """Participant self-report persistence (P0.7).
 
 Writes one ``participant_self_reports`` row (source='sr') plus a
-session_timeline_events row. The nine PAD/rating sliders are continuous bipolar
-[-5, +5] (true-zero center), stored raw/unrounded. Each report carries the
-analysis-join context (loop_index, phase, timepoint, function_class, optional
-trial_id/sequence_position/is_problem) and the before/after-robot-action flag.
+session_timeline_events row. PAD (pleasure/arousal/dominance) is a 9-point SAM,
+integer [-4, +4]. Each finalized row is tagged in ``raw_json`` with
+instrument="SAM-9" + scale_min/scale_max so it is distinguishable from the
+pre-SAM pilot rows (continuous [-5, +5] sliders, whose raw_json has no instrument
+key). Each report carries the analysis-join context (loop_index, phase,
+timepoint, function_class, optional trial_id/sequence_position/is_problem) and
+the before/after-robot-action flag.
 
 The trial_id FK is guarded so a dangling reference returns a clean 422 (the
 protocol_id lesson), never a DB 500.
@@ -32,6 +35,11 @@ SLIDER_FIELDS = (
     "arousal",
     "dominance",
 )
+
+# Provenance stamped into each finalized row's raw_json, so SAM-9 data is never
+# confused with the pre-SAM [-5, +5] slider pilots (whose raw_json lacks these).
+INSTRUMENT = "SAM-9"
+SCALE_MIN, SCALE_MAX = -4, 4
 
 # The context fields that, together with session_id, uniquely identify a draft.
 CONTEXT_FIELDS = (
@@ -96,7 +104,9 @@ def add_self_report(db: Session, session: StudySession, payload) -> ParticipantS
         is_problem=payload.is_problem,
         source="sr",
         before_after_robot_action=payload.before_after_robot_action,
-        raw_json=json.dumps(sliders),
+        raw_json=json.dumps(
+            {**sliders, "instrument": INSTRUMENT, "scale_min": SCALE_MIN, "scale_max": SCALE_MAX}
+        ),
         timestamp_utc=now.isoformat(),
         session_time_ms=compute_session_time_ms(session, now),
         **sliders,

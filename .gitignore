@@ -42,3 +42,9 @@ dist/
 
 # OS
 .DS_Store
+
+# Self-Assessment Manikin art (Bradley & Lang 1994, NIMH CSEA; copyrighted,
+# non-commercial research use). Public repo: source scan + extracted figures
+# stay local, never committed. The tablet loads them from static/sam at runtime.
+/docs/SAM/
+/backend/app/static/sam/

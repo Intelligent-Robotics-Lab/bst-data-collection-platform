@@ -49,18 +49,18 @@ def _close_all_gates(client, sid):
         client.post(f"/sessions/{sid}/sync/stage-complete", json={"stage": stage})
         client.post(
             f"/sessions/{sid}/self-reports",
-            json={"phase": stage, "timepoint": "post", "function_class": "baseline"},
+            json={"phase": stage, "timepoint": "post", "function_class": "baseline", "pleasure": 0, "arousal": 0, "dominance": 0},
         )
     for loop in range(1, 7):
         client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": loop})
         client.post(
             f"/sessions/{sid}/self-reports",
-            json={"loop_index": loop, "phase": "rehearsal", "timepoint": "pre", "function_class": "not_applicable"},
+            json={"loop_index": loop, "phase": "rehearsal", "timepoint": "pre", "function_class": "not_applicable", "pleasure": 0, "arousal": 0, "dominance": 0},
         )
         client.post(f"/sessions/{sid}/sync/feedback-delivered", json={"loop_index": loop})
         client.post(
             f"/sessions/{sid}/self-reports",
-            json={"loop_index": loop, "phase": "feedback", "timepoint": "post", "function_class": "not_applicable"},
+            json={"loop_index": loop, "phase": "feedback", "timepoint": "post", "function_class": "not_applicable", "pleasure": 0, "arousal": 0, "dominance": 0},
         )
 
 
@@ -91,7 +91,7 @@ def test_collected_overridden_open_accounting(client, protocol_id):
     client.post(f"/sessions/{sid}/sync/stage-complete", json={"stage": "tutorial"})
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline"},
+        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline", "pleasure": 0, "arousal": 0, "dominance": 0},
     )
     # overridden: loop 6 post_feedback opened then overridden (intentional skip)
     client.post(f"/sessions/{sid}/sync/feedback-delivered", json={"loop_index": 6})
@@ -122,7 +122,7 @@ def test_collected_even_when_gate_still_open(client, protocol_id):
     client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 3})
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"loop_index": 3, "phase": "rehearsal", "timepoint": "pre", "function_class": "not_applicable"},
+        json={"loop_index": 3, "phase": "rehearsal", "timepoint": "pre", "function_class": "not_applicable", "pleasure": 0, "arousal": 0, "dominance": 0},
     )
     # deliberately do NOT poll go-ahead, so the gate stays open in the DB
     sr = _readiness(client, sid)["self_reports"]

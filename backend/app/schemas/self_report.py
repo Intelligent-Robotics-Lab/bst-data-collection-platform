@@ -1,10 +1,16 @@
 """Pydantic schemas for participant self-reports (P0.7).
 
-The nine PAD/rating sliders are continuous bipolar [-5, +5] (true-zero center);
-each defaults to 0.0 because the tablet form starts every slider centered and a
-centered slider is a real neutral response, not a missing value. Context fields
-(loop_index, phase, timepoint, function_class) are required by the model; range
-and enum inputs are guarded here (clean 422)."""
+PAD affect is collected with a 9-point Self-Assessment Manikin (SAM) per
+dimension: integer bipolar [-4, +4] (pleasure/arousal/dominance). There is NO
+auto-neutral default -- the participant taps a manikin (or the gap between two),
+so an unset value means "not answered", never 0. Submit requires all three
+(SelfReportCreate); autosave allows any subset (SelfReportAutosave). Context
+fields (loop_index, phase, timepoint, function_class) are required by the model;
+range and enum inputs are guarded here (clean 422).
+
+The pre-SAM pilots collected these three as continuous [-5, +5] sliders; those
+rows are distinguished by their raw_json (no instrument key). New SAM rows carry
+instrument="SAM-9" + scale_min/scale_max in raw_json (see services/self_report)."""
 
 from typing import Literal, Optional
 
@@ -16,7 +22,11 @@ FunctionClass = Literal["baseline", "PR", "NR", "AR", "not_applicable"]
 IsProblem = Literal["0", "1", "not_applicable"]
 BeforeAfter = Literal["before", "after", "na"]
 
-_SLIDER = Field(default=0.0, ge=-5, le=5)
+# 9-point SAM per dimension, integer bipolar [-4, +4]. No default: an unset value
+# is "not answered", never coerced to 0 (a centered slider used to mean neutral;
+# a SAM has no such centre-default -- the participant must actively choose).
+_SAM_REQUIRED = Field(ge=-4, le=4)
+_SAM_OPTIONAL = Field(default=None, ge=-4, le=4)
 
 
 class SelfReportContext(BaseModel):
@@ -38,11 +48,20 @@ class SelfReportContext(BaseModel):
 
 
 class SelfReportCreate(SelfReportContext):
-    # nine bipolar sliders, [-5, +5]
-    # PAD affect model only. The other six dimensions are no longer collected.
-    pleasure: float = _SLIDER
-    arousal: float = _SLIDER
-    dominance: float = _SLIDER
+    # PAD via 9-point SAM; integer [-4, +4]; all three required at submit.
+    pleasure: int = _SAM_REQUIRED
+    arousal: int = _SAM_REQUIRED
+    dominance: int = _SAM_REQUIRED
+
+
+class SelfReportAutosave(SelfReportContext):
+    """Partial-progress autosave: any subset of the three may be present (the
+    participant may have chosen one or two manikins so far). Missing = not yet
+    answered; never coerced to a value."""
+
+    pleasure: Optional[int] = _SAM_OPTIONAL
+    arousal: Optional[int] = _SAM_OPTIONAL
+    dominance: Optional[int] = _SAM_OPTIONAL
 
 
 class SelfReportDraftSummary(BaseModel):
@@ -59,7 +78,8 @@ class SelfReportDraftRead(BaseModel):
 
     found: bool
     context_key: str
-    sliders: dict[str, float] = Field(default_factory=dict)
+    # a value is None when that SAM dimension has not been picked yet (partial draft)
+    sliders: dict[str, Optional[float]] = Field(default_factory=dict)
 
 
 class SelfReportRead(BaseModel):

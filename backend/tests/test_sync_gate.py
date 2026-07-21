@@ -76,7 +76,7 @@ def test_stage_gate_blocks_until_baseline_self_report(client, protocol_id):
     # baseline self-report (no loop_index) closes it
     r = client.post(
         f"/sessions/{sid}/self-reports",
-        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline"},
+        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline", "pleasure": 0, "arousal": 0, "dominance": 0},
     )
     assert r.status_code == 201, r.text
     assert r.json()["loop_index"] is None  # baseline report has no loop
@@ -97,7 +97,7 @@ def test_loop_gates_post_kid_response_and_post_feedback(client, protocol_id):
     assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is False
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"loop_index": 2, "phase": "rehearsal", "timepoint": "pre", "function_class": "NR"},
+        json={"loop_index": 2, "phase": "rehearsal", "timepoint": "pre", "function_class": "NR", "pleasure": 0, "arousal": 0, "dominance": 0},
     )
     assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is True
 
@@ -106,7 +106,7 @@ def test_loop_gates_post_kid_response_and_post_feedback(client, protocol_id):
     assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_feedback")["proceed"] is False
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"loop_index": 2, "phase": "feedback", "timepoint": "post", "function_class": "NR"},
+        json={"loop_index": 2, "phase": "feedback", "timepoint": "post", "function_class": "NR", "pleasure": 0, "arousal": 0, "dominance": 0},
     )
     assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_feedback")["proceed"] is True
 
@@ -118,7 +118,7 @@ def test_keying_is_independent_across_loops_and_checkpoints(client, protocol_id)
     # close loop 2 post_kid_response only
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"loop_index": 2, "phase": "rehearsal", "timepoint": "pre", "function_class": "NR"},
+        json={"loop_index": 2, "phase": "rehearsal", "timepoint": "pre", "function_class": "NR", "pleasure": 0, "arousal": 0, "dominance": 0},
     )
     assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is True
     # loop 4 post_kid_response still blocked; loop 2 post_feedback never opened
@@ -135,7 +135,7 @@ def test_list_gates_returns_open_and_closed(client, protocol_id):
     client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 2})
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline"},
+        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline", "pleasure": 0, "arousal": 0, "dominance": 0},
     )
     # poll closes the tutorial baseline gate via the matching self-report
     client.get(
@@ -218,7 +218,7 @@ def test_resend_opener_does_not_reopen_closed_gate(client, protocol_id):
     client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 1})
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"loop_index": 1, "phase": "rehearsal", "timepoint": "pre", "function_class": "baseline"},
+        json={"loop_index": 1, "phase": "rehearsal", "timepoint": "pre", "function_class": "baseline", "pleasure": 0, "arousal": 0, "dominance": 0},
     )
     # closed via self-report
     assert _go(client, sid, scope="loop", loop_index=1, checkpoint="post_kid_response")["proceed"] is True
@@ -304,7 +304,7 @@ def test_auto_pushed_context_submits_and_closes_the_gate(client, protocol_id):
     sid = _session(client, protocol_id, group=1)
     client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 2})
     ctx = _assignment(client)["self_report_context"]
-    r = client.post(f"/sessions/{sid}/self-reports", json={**ctx, "pleasure": 2.0})
+    r = client.post(f"/sessions/{sid}/self-reports", json={**ctx, "pleasure": 2, "arousal": 0, "dominance": 0})
     assert r.status_code == 201, r.text
     assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is True
 

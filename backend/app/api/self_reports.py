@@ -19,6 +19,7 @@ from app.schemas.self_report import (
     FunctionClass,
     IsProblem,
     Phase,
+    SelfReportAutosave,
     SelfReportContext,
     SelfReportCreate,
     SelfReportDraftRead,
@@ -52,10 +53,11 @@ def list_self_reports(session_id: str, db: Session = Depends(get_db)):
 
 @router.post("/autosave", response_model=SelfReportDraftSummary)
 def autosave_self_report(
-    session_id: str, payload: SelfReportCreate, db: Session = Depends(get_db)
+    session_id: str, payload: SelfReportAutosave, db: Session = Depends(get_db)
 ):
-    """Autosave in-progress sliders for one context. Draft only: no raw row, no
-    timeline event. Upserts the single draft for this (session, context)."""
+    """Autosave in-progress SAM picks for one context (any subset of the three).
+    Draft only: no raw row, no timeline event. Upserts the single draft for this
+    (session, context)."""
     session = get_session_or_404(db, session_id)
     return save_draft(db, session, payload)
 

@@ -44,6 +44,27 @@
     .slider-val { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent-dark); }
     input[type=range] { width: 100%; height: 2.2rem; }
     .poles { display: flex; justify-content: space-between; color: #789; font-size: 0.8rem; }
+    /* Self-Assessment Manikin (9-point SAM): 9 equal square buttons. 5 hold a
+       manikin, 4 hold a "between two figures" marker (NOT a manikin). Every
+       button shares the same size, border, selected highlight, and min height,
+       so all nine positions have identical weight and touch area. */
+    .sam-head { display: flex; justify-content: space-between; align-items: baseline;
+      font-size: 1.05rem; margin-bottom: 0.1rem; }
+    .sam-check { color: var(--accent-dark); font-weight: 700; font-size: 1.2rem; min-width: 1.2rem; text-align: right; }
+    .sam-anchors { display: flex; justify-content: space-between; gap: 0.6rem; color: #789; font-size: 0.8rem; margin: 0.1rem 0 0.45rem; }
+    .sam-anchors span { max-width: 47%; }
+    .sam-anchors span:last-child { text-align: right; }
+    .sam-row { display: flex; align-items: stretch; gap: 4px; touch-action: manipulation; }
+    .sam-cell { flex: 1 1 0; min-width: 0; aspect-ratio: 1 / 1; min-height: 66px;
+      border: 2px solid #cdd5db; border-radius: 10px; background: #fff; padding: 4px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .sam-cell:active { transform: scale(0.97); }
+    .sam-cell.selected { border-color: var(--accent); background: #e8f7ef; }
+    .sam-cell img { max-width: 100%; max-height: 100%; height: auto; display: block;
+      pointer-events: none; mix-blend-mode: multiply; }
+    /* intermediate "between" marker: a plain vertical divider, deliberately not a face/body */
+    .sam-between { width: 0; height: 52%; border-left: 3px dashed #aab3bb; }
+    .sam-cell.selected .sam-between { border-left-color: var(--accent); border-left-style: solid; }
     button.submit {
       width: 100%; font-size: 1.2rem; padding: 0.9rem; margin-top: 0.4rem;
       background: var(--accent); color: #fff; border: none; border-radius: 12px; cursor: pointer;
@@ -468,7 +489,9 @@
     }
 
     async function autosaveSelfReport() {
-      // Send context + all nine sliders (0 is a real neutral value, never dropped).
+      // Send context + whichever SAM picks have been made so far (a partial
+      // subset is fine; the autosave endpoint accepts any subset). 0 is a real
+      // choice and is kept; unset dimensions are simply absent.
       const body = Object.assign({}, current.self_report_context || {}, answers);
       try {
         const res = await fetch(
@@ -479,42 +502,63 @@
       } catch (e) { $("saving").textContent = ""; }
     }
 
-    // ---- Self-report ----
-    // PAD affect model only (Pleasure, Arousal, Dominance).
-    const SLIDERS = [
-      ["pleasure", "Unpleasant", "Pleasant"],
-      ["arousal", "Calm", "Excited"],
-      ["dominance", "Controlled", "In control"],
+    // ---- Self-report: 9-point Self-Assessment Manikin (SAM) per dimension ----
+    // Integer [-4, +4]: 5 figures at -4,-2,0,+2,+4 and 4 tappable gaps between
+    // them (tap a picture OR the space between two). No default -- the
+    // participant must actively pick, so submit stays disabled until all three
+    // rows are answered. Figures are served (gitignored) from
+    // /ui/sam/<dim>_<value>.png; the page lives at /ui/tablet.html, so the
+    // relative "sam/..." path resolves there.
+    const SAM = [
+      ["pleasure", "Very unpleasant", "Very pleasant"],
+      ["arousal", "Very calm", "Very excited"],
+      ["dominance", "Completely controlled by the situation", "Completely in control of the situation"],
     ];
+    const SAM_VALUES = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
+    const SAM_FIG = new Set([-4, -2, 0, 2, 4]);  // have a manikin image; the rest are gaps
 
     async function renderSelfReport(a) {
-      showForm("How did the robot's behavior make you feel?", "Slide each bar. Center means neutral.");
-      answers = {};
-      const rngs = {}, vals = {};
+      showForm("How did the robot's behavior make you feel?",
+               "For each row, tap the picture — or the space between two pictures — that best matches how you feel.");
+      answers = {};                    // key -> chosen integer; unset until tapped
+      $("submit-btn").disabled = true; // no default; require all three
+      const cells = {}, checks = {};
       const items = $("items");
-      for (const [key, lo, hi] of SLIDERS) {
-        answers[key] = 0;
+      for (const [key, lo, hi] of SAM) {
         const card = document.createElement("div");
-        card.className = "card slider-row";
-        const lab = document.createElement("div");
-        lab.className = "slider-label";
+        card.className = "card sam-card";
+        const head = document.createElement("div"); head.className = "sam-head";
         const name = document.createElement("span"); name.textContent = prettyName(key);
-        const val = document.createElement("span"); val.className = "slider-val"; val.textContent = "0";
-        lab.appendChild(name); lab.appendChild(val);
-        const rng = document.createElement("input");
-        rng.type = "range"; rng.min = -5; rng.max = 5; rng.step = 0.1; rng.value = 0;
-        rng.oninput = () => {
-          answers[key] = Number(rng.value);
-          val.textContent = Number(rng.value).toFixed(1);
-          scheduleSave();
-        };
-        rngs[key] = rng; vals[key] = val;
-        const poles = document.createElement("div");
-        poles.className = "poles";
+        const chk = document.createElement("span"); chk.className = "sam-check"; chk.textContent = "";
+        head.appendChild(name); head.appendChild(chk); checks[key] = chk;
+        const anchors = document.createElement("div"); anchors.className = "sam-anchors";
         const ls = document.createElement("span"); ls.textContent = lo;
         const hs = document.createElement("span"); hs.textContent = hi;
-        poles.appendChild(ls); poles.appendChild(hs);
-        card.appendChild(lab); card.appendChild(rng); card.appendChild(poles);
+        anchors.appendChild(ls); anchors.appendChild(hs);
+        const row = document.createElement("div"); row.className = "sam-row";
+        row.setAttribute("role", "radiogroup"); row.setAttribute("aria-label", prettyName(key));
+        cells[key] = {};
+        for (const v of SAM_VALUES) {
+          const cell = document.createElement("button");
+          cell.type = "button";
+          cell.className = "sam-cell " + (SAM_FIG.has(v) ? "sam-fig" : "sam-gap");
+          cell.setAttribute("role", "radio");
+          cell.setAttribute("aria-checked", "false");
+          cell.setAttribute("aria-label", prettyName(key) + " " + v);
+          if (SAM_FIG.has(v)) {
+            const img = document.createElement("img");
+            img.src = `sam/${key}_${v}.png`; img.alt = "";
+            cell.appendChild(img);
+          } else {
+            const mark = document.createElement("span"); mark.className = "sam-between";
+            mark.setAttribute("aria-hidden", "true");
+            cell.appendChild(mark);
+          }
+          cell.onclick = () => selectSam(key, v, cells, checks);
+          cells[key][v] = cell;
+          row.appendChild(cell);
+        }
+        card.appendChild(head); card.appendChild(anchors); card.appendChild(row);
         items.appendChild(card);
       }
 
@@ -530,10 +574,24 @@
           `${API}/sessions/${encodeURIComponent(a.session_id)}/self-reports/draft?${qs}`)).json();
         if (d.found) {
           for (const [k, v] of Object.entries(d.sliders || {})) {
-            if (rngs[k]) { answers[k] = v; rngs[k].value = v; vals[k].textContent = Number(v).toFixed(1); }
+            if (v === null || v === undefined) continue;
+            const iv = Math.round(Number(v));
+            if (cells[k] && cells[k][iv]) selectSam(k, iv, cells, checks);
           }
         }
       } catch (e) { /* no prior draft */ }
+    }
+
+    function selectSam(key, v, cells, checks) {
+      answers[key] = v;
+      for (const [vv, el] of Object.entries(cells[key])) {
+        const on = Number(vv) === v;
+        el.classList.toggle("selected", on);
+        el.setAttribute("aria-checked", on ? "true" : "false");
+      }
+      checks[key].textContent = "✓";
+      $("submit-btn").disabled = !SAM.every(([k]) => Number.isInteger(answers[k]));
+      scheduleSave();
     }
 
     function prettyName(k) {
