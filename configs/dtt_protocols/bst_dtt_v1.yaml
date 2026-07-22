@@ -13,8 +13,10 @@
 # VERSION NOTE: 0.1.0-placeholder stays in the registry for the sessions that ran
 # under it. Never edit a released version in place -- bump it, so each session
 # keeps the provenance (config_hash) of the protocol it actually ran.
+# 1.1.0 corrects the Receptive Instruction SD ("Can you shake your head?") and the
+# error-correction HP SD ("Can you nod your head?"); 1.0.0 stays for its sessions.
 protocol_key: bst_dtt_v1
-version: "1.0.0"
+version: "1.1.0"
 title: "BST/DTT protocol (human trainer -> child robot)"
 
 # This protocol has NO prompt-level hierarchy. When the child responds
@@ -65,7 +67,7 @@ named_sds:
     error_correction: false
 
   - name: "Receptive Instruction"
-    sd: "Nod your head."
+    sd: "Can you shake your head?"
     sd_type: Reception
     target_skill: reception
     scripted_correctness: "No Response"
@@ -112,6 +114,6 @@ named_sds:
 # High-probability SDs presented during error correction (the hp_sd step), to
 # rebuild behavioral momentum before the original SD is re-presented.
 hp_sds:
-  - {hp_id: SD_1, sd: "Shake your head", sd_type: Reception}
+  - {hp_id: SD_1, sd: "Can you nod your head?", sd_type: Reception}
   - {hp_id: SD_2, sd: "What are we working for", sd_type: Manding}
   - {hp_id: SD_3, sd: "What color is the ball.", sd_type: Tacting}

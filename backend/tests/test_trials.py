@@ -128,7 +128,7 @@ def test_instruction_resolves_named_sd_per_order_group(client, protocol_id):
                      json=_valid_trial(loop_index=2, sd_id="sd_2", target_skill="reception",
                                        response_correctness="no_response"))
     assert r1.status_code == 201, r1.text
-    assert r1.json()["instruction"] == "Nod your head."
+    assert r1.json()["instruction"] == "Can you shake your head?"
 
     sid3 = _running_session(client, protocol_id, pid="G3", sid="G3_S1", pb_order_group=3)
     r3 = client.post(f"/sessions/{sid3}/trials",
@@ -186,7 +186,7 @@ def test_protocols_listing_and_config(client, protocol_id):
     protos = client.get("/protocols").json()
     assert any(p["protocol_id"] == protocol_id and p["protocol_key"] == "bst_dtt_v1" for p in protos)
     cfg = client.get(f"/protocols/{protocol_id}/config").json()
-    assert cfg["version"] == "1.0.0"
+    assert cfg["version"] == "1.1.0"
     assert {s["sd_id"] for s in cfg["sds"]} >= {"sd_1", "sd_6"}
     # no prompt hierarchy; error correction is a fixed sequence instead
     assert cfg["prompt_levels"] == []

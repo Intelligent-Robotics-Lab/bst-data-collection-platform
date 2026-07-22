@@ -92,7 +92,7 @@ def test_rehearsal_sd_plan_is_ordered_named_and_prompted(client, protocol_id):
         "Tacting and Labeling", "Emotion Labeling", "Receptive Expression",
     ]
     # SD wording is carried from the protocol config
-    assert plan[1]["prompt"] == "Nod your head."
+    assert plan[1]["prompt"] == "Can you shake your head?"
     assert plan[0]["sd_type"] == "Manding"
 
 
