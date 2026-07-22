@@ -48,12 +48,13 @@
        manikin, 4 hold a "between two figures" marker (NOT a manikin). Every
        button shares the same size, border, selected highlight, and min height,
        so all nine positions have identical weight and touch area. */
-    .sam-head { display: flex; justify-content: space-between; align-items: baseline;
-      font-size: 1.05rem; margin-bottom: 0.1rem; }
-    .sam-check { color: var(--accent-dark); font-weight: 700; font-size: 1.2rem; min-width: 1.2rem; text-align: right; }
-    .sam-anchors { display: flex; justify-content: space-between; gap: 0.6rem; color: #789; font-size: 0.8rem; margin: 0.1rem 0 0.45rem; }
-    .sam-anchors span { max-width: 47%; }
-    .sam-anchors span:last-child { text-align: right; }
+    /* No dimension title: the scale anchor labels distinguish the rows. The
+       answered check sits at the right end of the anchor line (space reserved so
+       it never shifts the layout when it appears). */
+    .sam-anchors { display: flex; align-items: baseline; gap: 0.5rem; color: #789; font-size: 0.85rem; margin: 0 0 0.45rem; }
+    .sam-anchors .sam-lo { margin-right: auto; max-width: 45%; }
+    .sam-anchors .sam-hi { text-align: right; max-width: 45%; }
+    .sam-check { min-width: 1.1rem; text-align: right; color: var(--accent-dark); font-weight: 700; font-size: 1rem; }
     .sam-row { display: flex; align-items: stretch; gap: 4px; touch-action: manipulation; }
     .sam-cell { flex: 1 1 0; min-width: 0; aspect-ratio: 1 / 1; min-height: 66px;
       border: 2px solid #cdd5db; border-radius: 10px; background: #fff; padding: 4px;
@@ -610,14 +611,13 @@
 
       for (const [key, lo, hi] of SAM) {
         const card = document.createElement("div"); card.className = "card sam-card";
-        const head = document.createElement("div"); head.className = "sam-head";
-        const name = document.createElement("span"); name.textContent = prettyName(key);
-        const chk = document.createElement("span"); chk.className = "sam-check"; chk.textContent = "";
-        head.appendChild(name); head.appendChild(chk); checks[key] = chk;
+        // No visible dimension title; the anchor labels below identify the scale.
         const anchors = document.createElement("div"); anchors.className = "sam-anchors";
-        const ls = document.createElement("span"); ls.textContent = lo;
-        const hs = document.createElement("span"); hs.textContent = hi;
-        anchors.appendChild(ls); anchors.appendChild(hs);
+        const ls = document.createElement("span"); ls.className = "sam-lo"; ls.textContent = lo;
+        const hs = document.createElement("span"); hs.className = "sam-hi"; hs.textContent = hi;
+        const chk = document.createElement("span"); chk.className = "sam-check"; chk.textContent = "";
+        anchors.appendChild(ls); anchors.appendChild(hs); anchors.appendChild(chk);
+        checks[key] = chk;
         const row = document.createElement("div"); row.className = "sam-row";
         row.setAttribute("role", "radiogroup"); row.setAttribute("aria-label", prettyName(key));
         cells[key] = {};
@@ -641,7 +641,7 @@
           cells[key][v] = cell;
           row.appendChild(cell);
         }
-        card.appendChild(head); card.appendChild(anchors); card.appendChild(row);
+        card.appendChild(anchors); card.appendChild(row);
         parent.appendChild(card);
       }
 
