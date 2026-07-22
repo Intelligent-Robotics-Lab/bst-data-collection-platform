@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 from app.models.session import StudySession
 from app.models.sync import SyncGate
 from app.models.system import SessionTimelineEvent
+from app.services.dtt_loops import resolve_named_sd
+from app.services.protocol import get_protocol_config
 
 # Participant-facing phases, in order.
 PHASES = [
@@ -96,6 +98,32 @@ def _robot_started(db: Session, session_id: str) -> bool:
     ) is not None
 
 
+def _rehearsal_sd_plan(db: Session, session: StudySession) -> list[dict]:
+    """The ordered SD-delivery guide the tablet shows in rehearsal: for each
+    position 1..6, the named skill the participant delivers to the child and its
+    SD prompt. Position -> named SD is deterministic from pb_order_group; the SD
+    wording/type comes from the session's protocol config (cached load). Pure
+    read; when the group or config is missing, name/prompt come back None and the
+    tablet falls back to a bare number."""
+    group = session.pb_order_group
+    cfg = get_protocol_config(db, session.protocol_id) if session.protocol_id else None
+    by_name = {sd.get("name"): sd for sd in (cfg or {}).get("named_sds", [])}
+    plan = []
+    for n in range(1, REHEARSAL_ROUNDS + 1):
+        name = resolve_named_sd(group, n)
+        meta = by_name.get(name, {})
+        plan.append(
+            {
+                "number": n,
+                "name": name,
+                "sd_type": meta.get("sd_type"),
+                "target_skill": meta.get("target_skill"),
+                "prompt": meta.get("sd"),
+            }
+        )
+    return plan
+
+
 def compute_progress(db: Session, session: StudySession) -> dict:
     gates = db.scalars(
         select(SyncGate).where(SyncGate.session_id == session.session_id)
@@ -125,7 +153,19 @@ def compute_progress(db: Session, session: StudySession) -> dict:
         phase = "tutorial"  # robot started, first stage in progress
 
     if phase == "rehearsal":
-        return _base(session, "rehearsal", round=current_round, rounds_done=rounds_done)
+        # The SD to deliver NOW, strictly chronological: it points to trial N for
+        # the whole of loop N and only advances to N+1 once loop N fully completes
+        # (a post_feedback gate). Starts at 1, never jumps or goes backward. None
+        # once all six are delivered.
+        next_sd = rounds_done + 1 if rounds_done < REHEARSAL_ROUNDS else None
+        return _base(
+            session,
+            "rehearsal",
+            round=current_round,
+            rounds_done=rounds_done,
+            next_sd=next_sd,
+            rehearsal_sds=_rehearsal_sd_plan(db, session),
+        )
     return _base(session, phase)
 
 

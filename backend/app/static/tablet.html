@@ -87,6 +87,28 @@
     .pg-step.current { border-color: var(--accent-dark); background: #fff; color: var(--accent-dark);
       box-shadow: 0 0 0 3px rgba(17,136,120,0.15); }
     .pg-rounds-label { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.6rem; color: #234; }
+    /* Rehearsal SD-delivery guide: a numbered 1..6 list, each with its skill +
+       SD prompt, and a strong arrow on the SD to deliver now (advances 1->6). */
+    .pg-sd-list { max-width: 34rem; margin: 0.3rem auto 1.2rem; text-align: left; }
+    .pg-sd { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.7rem;
+      border: 2px solid #e2e6ea; border-radius: 12px; background: #fff; margin-bottom: 0.5rem; color: #93a0ab; }
+    .pg-sd .arrow { flex: 0 0 1.4rem; font-size: 1.5rem; line-height: 1; color: transparent; text-align: center; }
+    .pg-sd .num { flex: 0 0 auto; width: 2rem; height: 2rem; border-radius: 50%; border: 2px solid #cdd5db;
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.05rem; }
+    .pg-sd .body { flex: 1 1 auto; min-width: 0; }
+    .pg-sd .name { font-size: 1.12rem; font-weight: 700; }
+    .pg-sd .prompt { font-size: 0.98rem; color: #8a97a3; margin-top: 0.1rem; }
+    .pg-sd .deliver { flex: 0 0 auto; background: var(--accent-dark); color: #fff; font-size: 0.78rem;
+      font-weight: 700; letter-spacing: 0.02em; padding: 0.28rem 0.6rem; border-radius: 999px; white-space: nowrap; }
+    .pg-sd.done { color: #223; border-color: #cfe9db; }
+    .pg-sd.done .num { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .pg-sd.done .prompt { color: #9aa6b1; }
+    .pg-sd.current { border-color: var(--accent-dark); background: #eefaf4; color: #223;
+      box-shadow: 0 0 0 3px rgba(17,136,120,0.18); }
+    .pg-sd.current .arrow { color: var(--accent-dark); }
+    .pg-sd.current .num { border-color: var(--accent-dark); color: var(--accent-dark); }
+    .pg-sd.current .name { color: var(--accent-dark); }
+    .pg-sd.current .prompt { color: #3a6f5f; }
     .pg-dots { display: flex; justify-content: center; gap: 0.7rem; flex-wrap: wrap; margin: 0 0 1.6rem; }
     .pg-dot { width: 2.1rem; height: 2.1rem; border-radius: 50%; border: 3px solid #cdd5db; background: #fff; }
     .pg-dot.done { background: var(--accent); border-color: var(--accent); }
@@ -294,35 +316,57 @@
       let rounds = "", now = "";
       if (phaseKey === "rehearsal") {
         const total = p.rounds_total || 6;
-        // Prefer the robot's LIVE monitor numbers (accurate to the SD in progress).
-        // The gate-derived index lags -- a loop gate only opens after the child
-        // responds -- so fall back to it only when the monitor isn't available.
-        const doneSet = (monitor && Array.isArray(monitor.completed_sd_numbers))
-          ? monitor.completed_sd_numbers : null;
-        const cur = (monitor && monitor.trial_sd_number)
-          ? monitor.trial_sd_number
-          : Math.min(Math.max(p.round || 1, 1), total);
-        let dots = "";
-        for (let i = 1; i <= total; i++) {
-          // done -> fully coloured; current -> highlighted (not filled); rest dim.
-          const isDone = doneSet ? doneSet.includes(i) : (i <= (p.rounds_done || 0));
-          let c = "pg-dot";
-          if (isDone) c += " done";
-          else if (i === cur) c += " current";
-          dots += '<div class="' + c + '"></div>';
-        }
-        rounds =
-          '<div class="pg-rounds-label">SD ' + cur + ' of ' + total + '</div>' +
-          '<div class="pg-dots">' + dots + '</div>';
+        // Strictly chronological pointer to the SD to deliver NOW: gate-derived,
+        // starts at 1 and advances one step only when a loop fully completes.
+        // Never driven by the (possibly jumpy) live monitor, so it can't skip.
+        const next = Number.isInteger(p.next_sd)
+          ? p.next_sd
+          : Math.min((p.rounds_done || 0) + 1, total);
+        const doneCount = p.rounds_done || 0;
+        const sds = Array.isArray(p.rehearsal_sds) ? p.rehearsal_sds : [];
 
-        // Live Current SD + Trial State from the robot's monitor (when present).
-        const sd = monitor && (monitor.trial_name || monitor.trial_sd);
+        if (sds.length) {
+          const items = sds.map(sd => {
+            const n = sd.number;
+            let c = "pg-sd";
+            if (n <= doneCount) c += " done";
+            else if (n === next) c += " current";
+            const isCurrent = (n === next);
+            const numMark = (n <= doneCount) ? "✓" : String(n);
+            const name = sd.name || ("SD " + n);
+            const prompt = sd.prompt
+              ? '<div class="prompt">“' + esc(sd.prompt) + '”</div>' : '';
+            return '<div class="' + c + '">' +
+              '<div class="arrow">' + (isCurrent ? '▶' : '') + '</div>' +
+              '<div class="num">' + numMark + '</div>' +
+              '<div class="body"><div class="name">' + esc(name) + '</div>' + prompt + '</div>' +
+              (isCurrent ? '<div class="deliver">Deliver now</div>' : '') +
+              '</div>';
+          }).join("");
+          rounds =
+            '<div class="pg-rounds-label">' +
+            (next ? ('Deliver SD ' + next + ' of ' + total) : ('All ' + total + ' SDs delivered')) +
+            '</div><div class="pg-sd-list">' + items + '</div>';
+        } else {
+          // Fallback (SD plan unavailable, e.g. monitor says rehearsal before the
+          // gates catch up): the plain numbered dot row.
+          let dots = "";
+          for (let i = 1; i <= total; i++) {
+            let c = "pg-dot";
+            if (i <= doneCount) c += " done";
+            else if (i === next) c += " current";
+            dots += '<div class="' + c + '"></div>';
+          }
+          rounds = '<div class="pg-rounds-label">SD ' + next + ' of ' + total + '</div>' +
+                   '<div class="pg-dots">' + dots + '</div>';
+        }
+
+        // Live within-trial status from the robot's monitor (when present).
         const stRaw = monitor && monitor.trial_state;
         const st = stRaw ? (TRIAL_STATE_LABELS[stRaw] || TRIAL_STATE_LABELS[String(stRaw).toLowerCase()] || stRaw) : null;
-        if (sd || st) {
+        if (st) {
           now = '<div class="pg-now">' +
-            (sd ? '<div class="card2"><div class="lab">Current SD</div><div class="val">' + esc(sd) + '</div></div>' : '') +
-            (st ? '<div class="card2"><div class="lab">Trial State</div><div class="val">' + esc(st) + '</div></div>' : '') +
+            '<div class="card2"><div class="lab">Trial State</div><div class="val">' + esc(st) + '</div></div>' +
             '</div>';
         }
       }

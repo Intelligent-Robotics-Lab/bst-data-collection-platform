@@ -76,6 +76,63 @@ def test_rehearsal_round_tracks_loop_gates(client, protocol_id):
     assert _prog(client, sid)["round"] == 4  # highest loop reached
 
 
+def test_rehearsal_sd_plan_is_ordered_named_and_prompted(client, protocol_id):
+    """The tablet's delivery guide: six positions, each with the named skill (from
+    pb_order_group) and the SD prompt (from the protocol config)."""
+    sid = _session(client, protocol_id, group=1)
+    for stage in ("tutorial", "instruction", "modeling"):
+        client.post(f"/sessions/{sid}/sync/stage-complete", json={"stage": stage})
+    p = _prog(client, sid)
+    assert p["phase"] == "rehearsal"
+    plan = p["rehearsal_sds"]
+    assert [s["number"] for s in plan] == [1, 2, 3, 4, 5, 6]
+    # group 1 mapping (positions 1/3/5 baseline, 2/4/6 the problem SDs)
+    assert [s["name"] for s in plan] == [
+        "Manding", "Receptive Instruction", "Imitation",
+        "Tacting and Labeling", "Emotion Labeling", "Receptive Expression",
+    ]
+    # SD wording is carried from the protocol config
+    assert plan[1]["prompt"] == "Nod your head."
+    assert plan[0]["sd_type"] == "Manding"
+
+
+def test_next_sd_starts_at_one_and_advances_strictly(client, protocol_id):
+    sid = _session(client, protocol_id, group=1)
+    for stage in ("tutorial", "instruction", "modeling"):
+        client.post(f"/sessions/{sid}/sync/stage-complete", json={"stage": stage})
+    # start of rehearsal: deliver SD 1
+    assert _prog(client, sid)["next_sd"] == 1
+
+    # mid-loop-1 (child responded, feedback not yet) still points at 1
+    client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 1})
+    assert _prog(client, sid)["next_sd"] == 1
+    # loop 1 fully completes -> advances to 2 (strictly one step)
+    client.post(f"/sessions/{sid}/sync/feedback-delivered", json={"loop_index": 1})
+    assert _prog(client, sid)["next_sd"] == 2
+
+    # finish all six -> no next SD to deliver
+    for loop in range(2, 7):
+        client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": loop})
+        client.post(f"/sessions/{sid}/sync/feedback-delivered", json={"loop_index": loop})
+    assert _prog(client, sid)["next_sd"] is None
+
+
+def test_rehearsal_sd_plan_falls_back_to_numbers_without_group(client, protocol_id):
+    """No pb_order_group: the plan still has six numbered slots, names/prompts null
+    (the tablet then shows a bare number)."""
+    client.post("/participants", json={"participant_id": "NGP"})
+    client.post("/sessions", json={
+        "session_id": "NG_S1", "participant_id": "NGP", "scenario_type": "bst_dtt",
+        "protocol_id": protocol_id, "support_condition": 1,
+    })
+    client.post("/sessions/NG_S1/start")
+    for stage in ("tutorial", "instruction", "modeling"):
+        client.post("/sessions/NG_S1/sync/stage-complete", json={"stage": stage})
+    plan = _prog(client, "NG_S1")["rehearsal_sds"]
+    assert [s["number"] for s in plan] == [1, 2, 3, 4, 5, 6]
+    assert all(s["name"] is None and s["prompt"] is None for s in plan)
+
+
 def test_completed_session_is_complete(client, protocol_id):
     sid = _session(client, protocol_id)
     client.post(f"/sessions/{sid}/stop")
