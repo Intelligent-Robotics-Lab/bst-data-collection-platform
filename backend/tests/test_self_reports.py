@@ -35,8 +35,9 @@ def _ctx(**over):
 
 
 def _pad(**over):
-    """A valid integer PAD triple; all three required at submit."""
-    pad = {"pleasure": 2, "arousal": -1, "dominance": 0}
+    """A valid full answer set: three SAM ints + the categorical emotion; all
+    required at submit."""
+    pad = {"pleasure": 2, "arousal": -1, "dominance": 0, "emotion_category": "happy"}
     pad.update(over)
     return pad
 
@@ -80,6 +81,7 @@ def test_finalized_row_is_tagged_sam9(client, _session_factory):
     assert meta["instrument"] == "SAM-9"
     assert meta["scale_min"] == -4 and meta["scale_max"] == 4
     assert meta["pleasure"] == 4  # sliders stay flat in raw_json alongside the tag
+    assert meta["emotion_category"] == "happy"
 
 
 def test_two_self_reports_listed_in_order(client):
@@ -111,6 +113,30 @@ def test_range_boundaries(client):
     assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(pleasure=-4)}).status_code == 201
     assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(pleasure=5)}).status_code == 422
     assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(arousal=-5)}).status_code == 422
+
+
+def test_emotion_category_required_at_submit(client):
+    sid = _running(client)
+    r = client.post(f"/sessions/{sid}/self-reports",
+                    json={**_ctx(), "pleasure": 2, "arousal": 0, "dominance": 0})
+    assert r.status_code == 422  # emotion_category missing
+
+
+def test_bad_emotion_category_is_422(client):
+    sid = _running(client)
+    r = client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(emotion_category="ecstatic")})
+    assert r.status_code == 422
+
+
+def test_emotion_category_stored_returned_and_on_timeline(client):
+    sid = _running(client)
+    r = client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(emotion_category="anger")})
+    assert r.status_code == 201, r.text
+    assert r.json()["emotion_category"] == "anger"
+    tl = client.get(f"/sessions/{sid}/timeline", params={"format": "json"}).json()
+    assert any(
+        e["type"] == "self_report_submitted" and e["payload"]["emotion_category"] == "anger" for e in tl
+    )
 
 
 def test_bad_enum_is_422(client):
@@ -167,6 +193,15 @@ def test_autosave_accepts_a_single_partial_pick(client):
     assert r.status_code == 200, r.text
     got = client.get(f"/sessions/{sid}/self-reports/draft", params=_draft_params(ctx)).json()
     assert got["sliders"] == {"pleasure": 3, "arousal": None, "dominance": None}
+
+
+def test_autosave_restores_emotion_category(client):
+    sid = _running(client)
+    ctx = _ctx()
+    client.post(f"/sessions/{sid}/self-reports/autosave", json={**ctx, "emotion_category": "sad"})
+    got = client.get(f"/sessions/{sid}/self-reports/draft", params=_draft_params(ctx)).json()
+    assert got["emotion_category"] == "sad"
+    assert got["sliders"] == {"pleasure": None, "arousal": None, "dominance": None}
 
 
 def test_autosave_does_not_write_raw_row_or_timeline(client):

@@ -90,11 +90,24 @@ class ParticipantSelfReport(Base):
     is_problem: Mapped[str | None] = mapped_column(String, nullable=True)
     source: Mapped[str] = mapped_column(String, nullable=False, default="sr")
     before_after_robot_action: Mapped[str | None] = mapped_column(String, nullable=True)
+    # What this row is ABOUT: 'overall' (every simple report) | 'child_behavior' |
+    # 'self_handling'. The 6 post-trial/pre-feedback rehearsal slots write two rows
+    # (child_behavior + self_handling); all other slots write one 'overall' row.
+    # Nullable: rows written before this field never had it (they are 'overall').
+    referent: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Child-behavior checklist for the rehearsal slot, JSON list (e.g.
+    # ["vocalization","disruption"] or ["none"]). Set only on the child_behavior
+    # row; NULL everywhere else.
+    child_behaviors: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # PAD + ratings, continuous bipolar [-5, +5].
     pleasure: Mapped[float | None] = mapped_column(Float, nullable=True)  # == valence
     arousal: Mapped[float | None] = mapped_column(Float, nullable=True)
     dominance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Categorical "overall feeling" (8-class: neutral + 6 basic emotions +
+    # contempt), asked alongside the dimensional SAM. Nullable: rows written
+    # before this field never had it.
+    emotion_category: Mapped[str | None] = mapped_column(String, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     frustration: Mapped[float | None] = mapped_column(Float, nullable=True)
     engagement: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -178,10 +191,23 @@ class SelfReportDraft(Base):
         ForeignKey("dtt_trials.trial_id"), nullable=True
     )
 
-    # The nine bipolar sliders, continuous [-5, +5] (true-zero center).
+    # The nine bipolar sliders, continuous [-5, +5] (true-zero center). For the
+    # rehearsal page these hold SET A (feeling about the child's behavior).
     pleasure: Mapped[float | None] = mapped_column(Float, nullable=True)
     arousal: Mapped[float | None] = mapped_column(Float, nullable=True)
     dominance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Categorical "overall feeling" (8-class: neutral + 6 basic emotions +
+    # contempt), asked alongside the dimensional SAM. Nullable: rows written
+    # before this field never had it.
+    emotion_category: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Rehearsal page only: the child-behavior checklist (JSON list) and SET B
+    # (feeling about how the participant handled the interaction). NULL on a
+    # simple-form draft.
+    child_behaviors: Mapped[str | None] = mapped_column(String, nullable=True)
+    handling_pleasure: Mapped[float | None] = mapped_column(Float, nullable=True)
+    handling_arousal: Mapped[float | None] = mapped_column(Float, nullable=True)
+    handling_dominance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    handling_emotion_category: Mapped[str | None] = mapped_column(String, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     frustration: Mapped[float | None] = mapped_column(Float, nullable=True)
     engagement: Mapped[float | None] = mapped_column(Float, nullable=True)

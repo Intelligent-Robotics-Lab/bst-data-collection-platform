@@ -19,6 +19,7 @@ from app.schemas.self_report import (
     FunctionClass,
     IsProblem,
     Phase,
+    RehearsalSelfReportCreate,
     SelfReportAutosave,
     SelfReportContext,
     SelfReportCreate,
@@ -27,7 +28,12 @@ from app.schemas.self_report import (
     SelfReportRead,
     Timepoint,
 )
-from app.services.self_report import add_self_report, get_draft, save_draft
+from app.services.self_report import (
+    add_rehearsal_self_report,
+    add_self_report,
+    get_draft,
+    save_draft,
+)
 from app.services.session_service import get_session_or_404
 
 router = APIRouter(prefix="/sessions/{session_id}/self-reports", tags=["self-reports"])
@@ -39,6 +45,20 @@ def create_self_report(
 ):
     session = get_session_or_404(db, session_id)
     return add_self_report(db, session, payload)
+
+
+@router.post(
+    "/rehearsal",
+    response_model=list[SelfReportRead],
+    status_code=status.HTTP_201_CREATED,
+)
+def create_rehearsal_self_report(
+    session_id: str, payload: RehearsalSelfReportCreate, db: Session = Depends(get_db)
+):
+    """Expanded post-trial/pre-feedback form: behavior checklist + two PAD+emotion
+    sets. Writes two rows (child_behavior + self_handling) atomically."""
+    session = get_session_or_404(db, session_id)
+    return add_rehearsal_self_report(db, session, payload)
 
 
 @router.get("", response_model=list[SelfReportRead])

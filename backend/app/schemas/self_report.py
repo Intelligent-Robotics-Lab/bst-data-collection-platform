@@ -12,15 +12,31 @@ The pre-SAM pilots collected these three as continuous [-5, +5] sliders; those
 rows are distinguished by their raw_json (no instrument key). New SAM rows carry
 instrument="SAM-9" + scale_min/scale_max in raw_json (see services/self_report)."""
 
+import json
 from typing import Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 Phase = Literal["tutorial", "instruction", "modeling", "rehearsal", "feedback"]
 Timepoint = Literal["pre", "post"]
 FunctionClass = Literal["baseline", "PR", "NR", "AR", "not_applicable"]
 IsProblem = Literal["0", "1", "not_applicable"]
 BeforeAfter = Literal["before", "after", "na"]
+# Categorical "overall feeling": neutral + the six basic emotions + contempt
+# (the 8-class set the perception affect model also uses).
+EmotionCategory = Literal[
+    "neutral", "happy", "sad", "surprise", "fear", "anger", "disgust", "contempt"
+]
+# What a self-report row is ABOUT. Every existing/simple report is "overall"
+# (one row per slot). The 6 post-trial/pre-feedback rehearsal slots split into
+# two rows: the participant's affect toward the CHILD's behavior, and toward
+# how THEY handled the interaction.
+Referent = Literal["overall", "child_behavior", "self_handling"]
+# The child-behavior checklist answered on the rehearsal (post-kid-response) slot.
+# Multi-select; "none" is mutually exclusive with the rest (guarded on submit).
+ChildBehavior = Literal[
+    "vocalization", "noncompliance", "disruption", "repetition", "none"
+]
 
 # 9-point SAM per dimension, integer bipolar [-4, +4]. No default: an unset value
 # is "not answered", never coerced to 0 (a centered slider used to mean neutral;
@@ -52,16 +68,60 @@ class SelfReportCreate(SelfReportContext):
     pleasure: int = _SAM_REQUIRED
     arousal: int = _SAM_REQUIRED
     dominance: int = _SAM_REQUIRED
+    # categorical "overall feeling"; required at submit
+    emotion_category: EmotionCategory
 
 
 class SelfReportAutosave(SelfReportContext):
-    """Partial-progress autosave: any subset of the three may be present (the
-    participant may have chosen one or two manikins so far). Missing = not yet
-    answered; never coerced to a value."""
+    """Partial-progress autosave: any subset may be present (the participant may
+    have chosen one or two manikins so far). Missing = not yet answered; never
+    coerced to a value. Serves BOTH the simple form (pleasure/arousal/dominance/
+    emotion_category) and the expanded rehearsal page, which additionally carries
+    the child-behavior checklist and a second PAD+emotion set (handling_*)."""
 
+    # simple form + set A of the rehearsal page (feeling about the child's behavior)
     pleasure: Optional[int] = _SAM_OPTIONAL
     arousal: Optional[int] = _SAM_OPTIONAL
     dominance: Optional[int] = _SAM_OPTIONAL
+    emotion_category: Optional[EmotionCategory] = None
+    # rehearsal page only: the behavior checklist + set B (feeling about how the
+    # participant handled the interaction). All optional for partial autosave.
+    child_behaviors: Optional[list[ChildBehavior]] = None
+    handling_pleasure: Optional[int] = _SAM_OPTIONAL
+    handling_arousal: Optional[int] = _SAM_OPTIONAL
+    handling_dominance: Optional[int] = _SAM_OPTIONAL
+    handling_emotion_category: Optional[EmotionCategory] = None
+
+
+class PadEmotion(BaseModel):
+    """One complete PAD+emotion answer set (all four required)."""
+
+    pleasure: int = _SAM_REQUIRED
+    arousal: int = _SAM_REQUIRED
+    dominance: int = _SAM_REQUIRED
+    emotion_category: EmotionCategory
+
+
+class RehearsalSelfReportCreate(SelfReportContext):
+    """Submit payload for the expanded post-trial/pre-feedback rehearsal form.
+    One page -> two persisted rows (child_behavior + self_handling). The behavior
+    checklist attaches to the child_behavior row."""
+
+    child_behaviors: list[ChildBehavior] = Field(min_length=1)
+    child_behavior_affect: PadEmotion  # how the child's behaviors made them feel
+    self_handling_affect: PadEmotion   # how they felt about how they handled it
+
+    @field_validator("child_behaviors")
+    @classmethod
+    def _none_is_exclusive(cls, v: list[str]) -> list[str]:
+        # de-dup while preserving order
+        seen: list[str] = []
+        for b in v:
+            if b not in seen:
+                seen.append(b)
+        if "none" in seen and len(seen) > 1:
+            raise ValueError("'none' cannot be combined with other behaviors")
+        return seen
 
 
 class SelfReportDraftSummary(BaseModel):
@@ -80,6 +140,13 @@ class SelfReportDraftRead(BaseModel):
     context_key: str
     # a value is None when that SAM dimension has not been picked yet (partial draft)
     sliders: dict[str, Optional[float]] = Field(default_factory=dict)
+    # the categorical pick, or None if not chosen yet
+    emotion_category: Optional[str] = None
+    # rehearsal page only: restored checklist + the second PAD+emotion set. None/
+    # empty on a simple-form draft (the tablet ignores them there).
+    child_behaviors: Optional[list[str]] = None
+    handling_sliders: dict[str, Optional[float]] = Field(default_factory=dict)
+    handling_emotion_category: Optional[str] = None
 
 
 class SelfReportRead(BaseModel):
@@ -97,9 +164,15 @@ class SelfReportRead(BaseModel):
     is_problem: Optional[str] = None
     source: str
     before_after_robot_action: Optional[str] = None
+    # overall | child_behavior | self_handling (see Referent)
+    referent: Optional[str] = None
+    # the child-behavior checklist, stored as a JSON list on the child_behavior
+    # row (parsed back to a list here); None on every other row
+    child_behaviors: Optional[list[str]] = None
     pleasure: Optional[float] = None
     arousal: Optional[float] = None
     dominance: Optional[float] = None
+    emotion_category: Optional[str] = None
     confidence: Optional[float] = None
     frustration: Optional[float] = None
     engagement: Optional[float] = None
@@ -109,3 +182,14 @@ class SelfReportRead(BaseModel):
     timestamp_utc: str
     session_time_ms: int
     created_at: str
+
+    @field_validator("child_behaviors", mode="before")
+    @classmethod
+    def _parse_child_behaviors(cls, v):
+        """The column stores a JSON list string; expose it as a list."""
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except (ValueError, TypeError):
+                return None
+        return v

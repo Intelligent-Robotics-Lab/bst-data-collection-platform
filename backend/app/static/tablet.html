@@ -65,6 +65,10 @@
     /* intermediate "between" marker: a plain vertical divider, deliberately not a face/body */
     .sam-between { width: 0; height: 52%; border-left: 3px dashed #aab3bb; }
     .sam-cell.selected .sam-between { border-left-color: var(--accent); border-left-style: solid; }
+    /* the categorical question sits after the PAD rows, with a little extra gap above it */
+    .emo-card { margin-top: 1.5rem; }
+    /* section heading for the expanded rehearsal form (checklist + two PAD blocks) */
+    .sr-section { font-size: 1.12rem; font-weight: 700; color: #223; margin: 1.7rem 0 0.6rem; }
     button.submit {
       width: 100%; font-size: 1.2rem; padding: 0.9rem; margin-top: 0.4rem;
       background: var(--accent); color: #fff; border: none; border-radius: 12px; cursor: pointer;
@@ -134,6 +138,14 @@
     let answers = {};         // item_id -> value (questionnaire)
     let submitted = false;    // lock after a successful submit of this revision
     let saveTimer = null;
+
+    // Self-report form state. srMode: "simple" (baseline + post-feedback, one
+    // PAD+emotion block) | "rehearsal" (post-trial/pre-feedback: a behavior
+    // checklist + two PAD+emotion blocks). srBlocks holds the block controllers;
+    // srChecklist is the multi-select controller (rehearsal only).
+    let srMode = "simple";
+    let srBlocks = {};
+    let srChecklist = null;
 
     const $ = (id) => document.getElementById(id);
 
@@ -489,10 +501,26 @@
     }
 
     async function autosaveSelfReport() {
-      // Send context + whichever SAM picks have been made so far (a partial
-      // subset is fine; the autosave endpoint accepts any subset). 0 is a real
-      // choice and is kept; unset dimensions are simply absent.
-      const body = Object.assign({}, current.self_report_context || {}, answers);
+      // Send context + whichever picks have been made so far (a partial subset is
+      // fine; the autosave endpoint accepts any subset). 0 is a real choice and
+      // is kept; unset dimensions are `undefined` and JSON.stringify drops them.
+      const ctx = current.self_report_context || {};
+      let extra;
+      if (srMode === "rehearsal") {
+        const c = srBlocks.child.bucket, h = srBlocks.handling.bucket;
+        extra = {
+          child_behaviors: srChecklist ? srChecklist.values() : [],
+          pleasure: c.pleasure, arousal: c.arousal, dominance: c.dominance,
+          emotion_category: c.emotion_category,
+          handling_pleasure: h.pleasure, handling_arousal: h.arousal,
+          handling_dominance: h.dominance, handling_emotion_category: h.emotion_category,
+        };
+      } else {
+        const b = srBlocks.single.bucket;
+        extra = { pleasure: b.pleasure, arousal: b.arousal, dominance: b.dominance,
+                  emotion_category: b.emotion_category };
+      }
+      const body = Object.assign({}, ctx, extra);
       try {
         const res = await fetch(
           `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports/autosave`,
@@ -516,17 +544,28 @@
     ];
     const SAM_VALUES = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
     const SAM_FIG = new Set([-4, -2, 0, 2, 4]);  // have a manikin image; the rest are gaps
+    // Categorical "overall feeling" (single-select), captured as emotion_category.
+    const EMOTIONS = [
+      ["neutral", "Neutral"], ["happy", "Happy"], ["sad", "Sad"], ["surprise", "Surprise"],
+      ["fear", "Fear"], ["anger", "Anger"], ["disgust", "Disgust"], ["contempt", "Contempt"],
+    ];
 
-    async function renderSelfReport(a) {
-      showForm("How did the robot's behavior make you feel?",
-               "For each row, tap the picture — or the space between two pictures — that best matches how you feel.");
-      answers = {};                    // key -> chosen integer; unset until tapped
-      $("submit-btn").disabled = true; // no default; require all three
-      const cells = {}, checks = {};
-      const items = $("items");
+    // The child-behavior checklist shown only on the rehearsal (post-trial,
+    // pre-feedback) slot. Multi-select; "None" is mutually exclusive.
+    const BEHAVIORS = [
+      ["vocalization", "Vocalization"], ["noncompliance", "Noncompliance"],
+      ["disruption", "Disruption"], ["repetition", "Repetition"], ["none", "None"],
+    ];
+
+    // Build one PAD block (3 SAM rows) + its "overall feeling" card into `parent`.
+    // Picks live in the returned controller's own bucket, so several blocks
+    // coexist on one page without sharing state.
+    function buildSamEmotionBlock(parent, emoQuestion, onChange) {
+      const bucket = { pleasure: undefined, arousal: undefined, dominance: undefined, emotion_category: undefined };
+      const cells = {}, checks = {}, emoCells = {};
+
       for (const [key, lo, hi] of SAM) {
-        const card = document.createElement("div");
-        card.className = "card sam-card";
+        const card = document.createElement("div"); card.className = "card sam-card";
         const head = document.createElement("div"); head.className = "sam-head";
         const name = document.createElement("span"); name.textContent = prettyName(key);
         const chk = document.createElement("span"); chk.className = "sam-check"; chk.textContent = "";
@@ -554,18 +593,152 @@
             mark.setAttribute("aria-hidden", "true");
             cell.appendChild(mark);
           }
-          cell.onclick = () => selectSam(key, v, cells, checks);
+          cell.onclick = () => pickSam(key, v);
           cells[key][v] = cell;
           row.appendChild(cell);
         }
         card.appendChild(head); card.appendChild(anchors); card.appendChild(row);
-        items.appendChild(card);
+        parent.appendChild(card);
       }
+
+      // "Overall feeling" (single-select), with a little extra gap above it.
+      const card = document.createElement("div"); card.className = "card emo-card";
+      const q = document.createElement("div"); q.className = "qtext"; q.textContent = emoQuestion;
+      card.appendChild(q);
+      const opts = document.createElement("div"); opts.className = "opts";
+      opts.setAttribute("role", "radiogroup"); opts.setAttribute("aria-label", "Overall feeling");
+      for (const [val, label] of EMOTIONS) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "opt"; b.textContent = label;
+        b.setAttribute("role", "radio"); b.setAttribute("aria-checked", "false");
+        b.onclick = () => pickEmo(val);
+        emoCells[val] = b;
+        opts.appendChild(b);
+      }
+      card.appendChild(opts);
+      parent.appendChild(card);
+
+      function pickSam(key, v) {
+        bucket[key] = v;
+        for (const [vv, el] of Object.entries(cells[key])) {
+          const on = Number(vv) === v;
+          el.classList.toggle("selected", on);
+          el.setAttribute("aria-checked", on ? "true" : "false");
+        }
+        checks[key].textContent = "✓";
+        onChange();
+      }
+      function pickEmo(val) {
+        bucket.emotion_category = val;
+        for (const [v, el] of Object.entries(emoCells)) {
+          const on = v === val;
+          el.classList.toggle("selected", on);
+          el.setAttribute("aria-checked", on ? "true" : "false");
+        }
+        onChange();
+      }
+      return {
+        bucket,
+        complete() {
+          return SAM.every(([k]) => Number.isInteger(bucket[k])) &&
+                 typeof bucket.emotion_category === "string";
+        },
+        restore(sliders, emotion) {
+          for (const [k, v] of Object.entries(sliders || {})) {
+            if (v === null || v === undefined) continue;
+            const iv = Math.round(Number(v));
+            if (cells[k] && cells[k][iv]) pickSam(k, iv);
+          }
+          if (emotion && emoCells[emotion]) pickEmo(emotion);
+        },
+      };
+    }
+
+    // Build the multi-select behavior checklist into `parent`. "none" is exclusive.
+    function buildChecklist(parent, question, hint, onChange) {
+      const selected = new Set();
+      const cellsByVal = {};
+      const card = document.createElement("div"); card.className = "card";
+      const q = document.createElement("div"); q.className = "qtext"; q.textContent = question;
+      card.appendChild(q);
+      if (hint) { const h = document.createElement("div"); h.className = "qhint"; h.textContent = hint; card.appendChild(h); }
+      const opts = document.createElement("div"); opts.className = "opts";
+      opts.setAttribute("role", "group"); opts.setAttribute("aria-label", question);
+      for (const [val, label] of BEHAVIORS) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "opt"; b.textContent = label;
+        b.setAttribute("aria-pressed", "false");
+        b.onclick = () => toggle(val);
+        cellsByVal[val] = b;
+        opts.appendChild(b);
+      }
+      card.appendChild(opts);
+      parent.appendChild(card);
+
+      function paint() {
+        for (const [val, el] of Object.entries(cellsByVal)) {
+          const on = selected.has(val);
+          el.classList.toggle("selected", on);
+          el.setAttribute("aria-pressed", on ? "true" : "false");
+        }
+      }
+      function toggle(val) {
+        if (val === "none") {
+          if (selected.has("none")) selected.delete("none");
+          else { selected.clear(); selected.add("none"); }
+        } else {
+          selected.delete("none");
+          if (selected.has(val)) selected.delete(val); else selected.add(val);
+        }
+        paint(); onChange();
+      }
+      return {
+        values() { return BEHAVIORS.map(([v]) => v).filter(v => selected.has(v)); },
+        complete() { return selected.size >= 1; },
+        restore(arr) {
+          selected.clear();
+          (arr || []).forEach(v => { if (cellsByVal[v]) selected.add(v); });
+          paint();
+        },
+      };
+    }
+
+    async function renderSelfReport(a) {
+      const ctx = a.self_report_context || {};
+      // The 6 post-trial/pre-feedback slots (phase 'rehearsal') get the expanded
+      // form; every other slot keeps the single PAD+emotion form unchanged.
+      srMode = ctx.phase === "rehearsal" ? "rehearsal" : "simple";
+      answers = {}; srBlocks = {}; srChecklist = null;
+      const items = $("items");
+      const onChange = () => { $("submit-btn").disabled = !selfReportComplete(); scheduleSave(); };
+
+      if (srMode === "rehearsal") {
+        showForm("After this round",
+                 "Please answer about the round you just finished. Tap the picture — or the space between two pictures — that best matches how you feel.");
+        srChecklist = buildChecklist(items,
+          "Did the child exhibit any of the following behaviors?",
+          "Select all that apply.", onChange);
+        const s1 = document.createElement("div"); s1.className = "sr-section";
+        s1.textContent = "How did the above behaviors make you feel?";
+        items.appendChild(s1);
+        srBlocks.child = buildSamEmotionBlock(items,
+          "Overall, which of these best describes how the above behaviors made you feel?", onChange);
+        const s2 = document.createElement("div"); s2.className = "sr-section";
+        s2.textContent = "How did you feel about how you handled the interaction?";
+        items.appendChild(s2);
+        srBlocks.handling = buildSamEmotionBlock(items,
+          "Overall, which of these best describes how you felt about how you handled it?", onChange);
+      } else {
+        showForm("How did the robot's behavior make you feel?",
+                 "For each row, tap the picture — or the space between two pictures — that best matches how you feel; then pick the overall feeling below.");
+        srBlocks.single = buildSamEmotionBlock(items,
+          "Overall, which of these best describes how the robot made you feel?", onChange);
+      }
+      $("submit-btn").disabled = true;  // no default; every part must be answered
 
       // Restore an autosaved draft for this exact context (refresh-restore).
       try {
         const qs = new URLSearchParams();
-        const ctx = a.self_report_context || {};
         for (const k of ["loop_index", "phase", "timepoint", "function_class",
                          "is_problem", "sequence_position", "before_after_robot_action", "trial_id"]) {
           if (ctx[k] !== undefined && ctx[k] !== null) qs.set(k, ctx[k]);
@@ -573,25 +746,23 @@
         const d = await (await fetch(
           `${API}/sessions/${encodeURIComponent(a.session_id)}/self-reports/draft?${qs}`)).json();
         if (d.found) {
-          for (const [k, v] of Object.entries(d.sliders || {})) {
-            if (v === null || v === undefined) continue;
-            const iv = Math.round(Number(v));
-            if (cells[k] && cells[k][iv]) selectSam(k, iv, cells, checks);
+          if (srMode === "rehearsal") {
+            if (srChecklist) srChecklist.restore(d.child_behaviors);
+            srBlocks.child.restore(d.sliders, d.emotion_category);
+            srBlocks.handling.restore(d.handling_sliders, d.handling_emotion_category);
+          } else {
+            srBlocks.single.restore(d.sliders, d.emotion_category);
           }
         }
       } catch (e) { /* no prior draft */ }
     }
 
-    function selectSam(key, v, cells, checks) {
-      answers[key] = v;
-      for (const [vv, el] of Object.entries(cells[key])) {
-        const on = Number(vv) === v;
-        el.classList.toggle("selected", on);
-        el.setAttribute("aria-checked", on ? "true" : "false");
+    function selfReportComplete() {
+      if (srMode === "rehearsal") {
+        return !!(srChecklist && srChecklist.complete() &&
+                  srBlocks.child.complete() && srBlocks.handling.complete());
       }
-      checks[key].textContent = "✓";
-      $("submit-btn").disabled = !SAM.every(([k]) => Number.isInteger(answers[k]));
-      scheduleSave();
+      return !!(srBlocks.single && srBlocks.single.complete());
     }
 
     function prettyName(k) {
@@ -624,9 +795,21 @@
 
     async function submitSelfReport() {
       const ctx = current.self_report_context || {};
-      const body = Object.assign({}, ctx, answers);
-      const res = await fetch(
-        `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports`,
+      let url, body;
+      if (srMode === "rehearsal") {
+        const c = srBlocks.child.bucket, h = srBlocks.handling.bucket;
+        url = `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports/rehearsal`;
+        body = Object.assign({}, ctx, {
+          child_behaviors: srChecklist.values(),
+          child_behavior_affect: { pleasure: c.pleasure, arousal: c.arousal, dominance: c.dominance, emotion_category: c.emotion_category },
+          self_handling_affect: { pleasure: h.pleasure, arousal: h.arousal, dominance: h.dominance, emotion_category: h.emotion_category },
+        });
+      } else {
+        const b = srBlocks.single.bucket;
+        url = `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports`;
+        body = Object.assign({}, ctx, { pleasure: b.pleasure, arousal: b.arousal, dominance: b.dominance, emotion_category: b.emotion_category });
+      }
+      const res = await fetch(url,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       handleSubmitResult(res, "Thank you. Your report was submitted.");
     }

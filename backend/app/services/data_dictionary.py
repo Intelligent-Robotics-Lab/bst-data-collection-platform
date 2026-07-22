@@ -193,14 +193,30 @@ Participant self-reports (PAD + ratings), continuous bipolar sliders in [-5, +5]
   behavior in play). `rehearsal` = the post-kid-response report within a loop
   (the participant's reaction to the CHILD'S behavior - the PR/NR/AR manipulation
   - collected after the kid-behavior arc and before feedback); `feedback` = the
-  post-feedback report within a loop. Two reports per DTT loop (rehearsal +
-  feedback) plus three baseline = the 15 gated measurements.
+  post-feedback report within a loop.
 - `function_class` - carried for convenience; canonical value is in `dtt_loops`.
   Baseline self-reports carry `function_class='baseline'`.
 - `before_after_robot_action` - before / after / na.
 - `source` - 'sr' (self-report). ML affect lives in perception_events, not here.
+- `referent` - what the row is ABOUT: `overall` (every baseline + post-feedback
+  report, one row per slot) | `child_behavior` | `self_handling`. The 6 post-
+  trial/pre-feedback rehearsal slots each produce **two** rows: `child_behavior`
+  (how the CHILD's behavior made the participant feel) and `self_handling` (how
+  they felt about how THEY handled the interaction). Rows written before this
+  field are `overall` (NULL). Gates: still 15 (3 baseline + 6 loops x 2), but the
+  rehearsal split makes 21 self_report rows in a fully gated session (3 + 6x2 +
+  6). The `post_kid_response` gate closes on the `self_handling` row.
+- `child_behaviors` - JSON list of the child-behavior checklist answered on the
+  rehearsal slot (subset of `vocalization | noncompliance | disruption |
+  repetition | none`; `none` is exclusive). Set only on the `child_behavior`
+  row; NULL elsewhere.
+- `emotion_category` - categorical "overall feeling" (8-class: `neutral | happy |
+  sad | surprise | fear | anger | disgust | contempt`), asked alongside the SAM.
 - Sliders (COLLECTED): the PAD affect model only - `pleasure` (==valence),
-  `arousal`, `dominance`. Continuous bipolar in [-5, +5], true-zero center.
+  `arousal`, `dominance`, collected as a 9-point Self-Assessment Manikin, integer
+  [-4, +4] (raw_json carries instrument="SAM-9"). Pre-SAM pilot rows are
+  continuous [-5, +5] (raw_json has no instrument key). On a `child_behavior` or
+  `self_handling` row these hold that referent's PAD set.
 - Sliders (RETAINED, NOT collected): `confidence`, `frustration`, `engagement`,
   `perceived_challenge`, `perceived_support`, `cognitive_load` remain as columns
   for schema stability but are **NULL** (not a fake 0) - they are not asked in
@@ -305,7 +321,10 @@ One row per self-report, ready for the 2x3 analysis.
 - **Raw** (from `participant_self_reports`): `self_report_id`, `session_id`,
   `participant_id`, `trial_id`, `loop_index`, `sequence_position`, `phase`,
   `timepoint`, `function_class`, `is_problem`, `before_after_robot_action`,
-  `source`, the nine sliders, `timestamp_utc`, `session_time_ms`.
+  `source`, `referent`, `child_behaviors`, `emotion_category`, the nine sliders,
+  `timestamp_utc`, `session_time_ms`. NOTE: a rehearsal slot contributes **two**
+  rows here (referent `child_behavior` + `self_handling`); filter/pivot on
+  `referent` when comparing PAD across referents.
 - **Derived-via-join** (from `dtt_loops`): `loop__function_class` (canonical),
   `loop__sd_id`. (from `sessions`): `session__support_condition`,
   `session__pb_order_group`.
