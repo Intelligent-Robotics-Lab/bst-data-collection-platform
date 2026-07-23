@@ -32,11 +32,10 @@ EmotionCategory = Literal[
 # two rows: the participant's affect toward the CHILD's behavior, and toward
 # how THEY handled the interaction.
 Referent = Literal["overall", "child_behavior", "self_handling"]
-# The child-behavior checklist answered on the rehearsal (post-kid-response) slot.
-# Multi-select; "none" is mutually exclusive with the rest (guarded on submit).
-ChildBehavior = Literal[
-    "vocalization", "noncompliance", "disruption", "repetition", "none"
-]
+# The child-behavior question answered on the rehearsal (post-kid-response) slot.
+# Single-select: exactly one of these (stored as a one-element list in
+# child_behaviors, so the column/export shape is unchanged).
+ChildBehavior = Literal["screaming", "demanding", "repetition", "none"]
 
 # 9-point SAM per dimension, integer bipolar [-4, +4]. No default: an unset value
 # is "not answered", never coerced to 0 (a centered slider used to mean neutral;
@@ -107,21 +106,10 @@ class RehearsalSelfReportCreate(SelfReportContext):
     One page -> two persisted rows (child_behavior + self_handling). The behavior
     checklist attaches to the child_behavior row."""
 
-    child_behaviors: list[ChildBehavior] = Field(min_length=1)
-    child_behavior_affect: PadEmotion  # how the child's behaviors made them feel
+    # single-select: exactly one behavior, carried as a one-element list
+    child_behaviors: list[ChildBehavior] = Field(min_length=1, max_length=1)
+    child_behavior_affect: PadEmotion  # how the child's behavior made them feel
     self_handling_affect: PadEmotion   # how they felt about how they handled it
-
-    @field_validator("child_behaviors")
-    @classmethod
-    def _none_is_exclusive(cls, v: list[str]) -> list[str]:
-        # de-dup while preserving order
-        seen: list[str] = []
-        for b in v:
-            if b not in seen:
-                seen.append(b)
-        if "none" in seen and len(seen) > 1:
-            raise ValueError("'none' cannot be combined with other behaviors")
-        return seen
 
 
 class SelfReportDraftSummary(BaseModel):

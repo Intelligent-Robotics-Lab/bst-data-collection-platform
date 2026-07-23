@@ -52,7 +52,7 @@ def _rehearsal_body(**ctx):
     gate."""
     return {
         **ctx,
-        "child_behaviors": ["vocalization"],
+        "child_behaviors": ["screaming"],
         "child_behavior_affect": {"pleasure": 0, "arousal": 0, "dominance": 0, "emotion_category": "neutral"},
         "self_handling_affect": {"pleasure": 1, "arousal": -1, "dominance": 0, "emotion_category": "happy"},
     }

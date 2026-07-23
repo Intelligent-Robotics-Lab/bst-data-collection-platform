@@ -42,7 +42,7 @@ def _ctx(**over):
 def _body(**over):
     b = {
         **_ctx(),
-        "child_behaviors": ["vocalization", "disruption"],
+        "child_behaviors": ["screaming"],
         "child_behavior_affect": {"pleasure": -3, "arousal": 2, "dominance": -1, "emotion_category": "fear"},
         "self_handling_affect": {"pleasure": 1, "arousal": 0, "dominance": 2, "emotion_category": "happy"},
     }
@@ -69,8 +69,8 @@ def test_writes_two_rows_with_referents_affect_and_checklist(client):
     child = by_ref["child_behavior"]
     assert (child["pleasure"], child["arousal"], child["dominance"]) == (-3, 2, -1)
     assert child["emotion_category"] == "fear"
-    # the checklist attaches to the child_behavior row only
-    assert child["child_behaviors"] == ["vocalization", "disruption"]
+    # the single-select behavior attaches to the child_behavior row only
+    assert child["child_behaviors"] == ["screaming"]
 
     handling = by_ref["self_handling"]
     assert (handling["pleasure"], handling["arousal"], handling["dominance"]) == (1, 0, 2)
@@ -100,7 +100,7 @@ def test_raw_json_and_timeline_tag_both_rows(client, _session_factory):
     for ref in ("child_behavior", "self_handling"):
         assert metas[ref]["instrument"] == "SAM-9"
         assert metas[ref]["referent"] == ref
-    assert metas["child_behavior"]["child_behaviors"] == ["vocalization", "disruption"]
+    assert metas["child_behavior"]["child_behaviors"] == ["screaming"]
     assert metas["self_handling"]["child_behaviors"] is None
 
     tl = client.get(f"/sessions/{sid}/timeline", params={"format": "json"}).json()
@@ -108,14 +108,15 @@ def test_raw_json_and_timeline_tag_both_rows(client, _session_factory):
     refs = {e["payload"]["referent"] for e in submits}
     assert {"child_behavior", "self_handling"} <= refs
     child_ev = next(e for e in submits if e["payload"]["referent"] == "child_behavior")
-    assert child_ev["payload"]["child_behaviors"] == ["vocalization", "disruption"]
+    assert child_ev["payload"]["child_behaviors"] == ["screaming"]
 
 
 # --- checklist validation ----------------------------------------------------
 
-def test_none_is_exclusive(client):
+def test_two_selections_rejected(client):
+    """Single-select: more than one behavior is a 422."""
     sid = _running(client)
-    r = client.post(_url(sid), json=_body(child_behaviors=["none", "vocalization"]))
+    r = client.post(_url(sid), json=_body(child_behaviors=["screaming", "demanding"]))
     assert r.status_code == 422
 
 
@@ -127,22 +128,15 @@ def test_none_alone_is_ok(client):
     assert child["child_behaviors"] == ["none"]
 
 
-def test_empty_checklist_is_422(client):
+def test_empty_selection_is_422(client):
     sid = _running(client)
     assert client.post(_url(sid), json=_body(child_behaviors=[])).status_code == 422
 
 
 def test_bad_behavior_value_is_422(client):
     sid = _running(client)
-    assert client.post(_url(sid), json=_body(child_behaviors=["screaming"])).status_code == 422
-
-
-def test_duplicate_behaviors_are_deduped(client):
-    sid = _running(client)
-    r = client.post(_url(sid), json=_body(child_behaviors=["vocalization", "vocalization", "disruption"]))
-    assert r.status_code == 201, r.text
-    child = next(x for x in r.json() if x["referent"] == "child_behavior")
-    assert child["child_behaviors"] == ["vocalization", "disruption"]
+    # a retired option is no longer a valid value
+    assert client.post(_url(sid), json=_body(child_behaviors=["disruption"])).status_code == 422
 
 
 # --- PAD/emotion validation on both sets -------------------------------------
@@ -202,7 +196,7 @@ def test_autosave_restores_both_sets_and_checklist(client):
         f"/sessions/{sid}/self-reports/autosave",
         json={
             **ctx,
-            "child_behaviors": ["noncompliance"],
+            "child_behaviors": ["demanding"],
             "pleasure": -2, "arousal": 3, "emotion_category": "sad",
             "handling_pleasure": 4, "handling_dominance": -1,
             "handling_emotion_category": "contempt",
@@ -218,15 +212,15 @@ def test_autosave_restores_both_sets_and_checklist(client):
     # set B (self handling)
     assert got["handling_sliders"] == {"pleasure": 4, "arousal": None, "dominance": -1}
     assert got["handling_emotion_category"] == "contempt"
-    # checklist
-    assert got["child_behaviors"] == ["noncompliance"]
+    # behavior selection
+    assert got["child_behaviors"] == ["demanding"]
 
 
 def test_submit_deletes_the_rehearsal_draft(client):
     sid = _running(client)
     ctx = _ctx()
     client.post(f"/sessions/{sid}/self-reports/autosave",
-                json={**ctx, "pleasure": 1, "child_behaviors": ["disruption"]})
+                json={**ctx, "pleasure": 1, "child_behaviors": ["repetition"]})
     assert client.get(f"/sessions/{sid}/self-reports/draft", params=_draft_params(ctx)).json()["found"] is True
 
     assert client.post(_url(sid), json=_body()).status_code == 201
@@ -250,5 +244,5 @@ def test_export_carries_referent_and_child_behaviors(client, exports_tmp):
     by_ref = {r["referent"]: r for r in rows}
     assert set(by_ref) == {"child_behavior", "self_handling"}
     # child_behaviors is emitted as its JSON list string on the child row, empty on the other
-    assert json.loads(by_ref["child_behavior"]["child_behaviors"]) == ["vocalization", "disruption"]
+    assert json.loads(by_ref["child_behavior"]["child_behaviors"]) == ["screaming"]
     assert by_ref["self_handling"]["child_behaviors"] in ("", None)

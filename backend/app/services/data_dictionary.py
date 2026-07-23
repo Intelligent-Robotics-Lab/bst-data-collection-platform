@@ -206,10 +206,9 @@ Participant self-reports (PAD + ratings), continuous bipolar sliders in [-5, +5]
   field are `overall` (NULL). Gates: still 15 (3 baseline + 6 loops x 2), but the
   rehearsal split makes 21 self_report rows in a fully gated session (3 + 6x2 +
   6). The `post_kid_response` gate closes on the `self_handling` row.
-- `child_behaviors` - JSON list of the child-behavior checklist answered on the
-  rehearsal slot (subset of `vocalization | noncompliance | disruption |
-  repetition | none`; `none` is exclusive). Set only on the `child_behavior`
-  row; NULL elsewhere.
+- `child_behaviors` - the single-select child-behavior answer on the rehearsal
+  slot, stored as a one-element JSON list: one of `screaming | demanding |
+  repetition | none`. Set only on the `child_behavior` row; NULL elsewhere.
 - `emotion_category` - categorical "overall feeling" (8-class: `neutral | happy |
   sad | surprise | fear | anger | disgust | contempt`), asked alongside the SAM.
 - Sliders (COLLECTED): the PAD affect model only - `pleasure` (==valence),

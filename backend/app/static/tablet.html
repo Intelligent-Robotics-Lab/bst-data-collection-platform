@@ -583,8 +583,8 @@
     // /ui/sam/<dim>_<value>.png; the page lives at /ui/tablet.html, so the
     // relative "sam/..." path resolves there.
     const SAM = [
-      ["pleasure", "Very unpleasant", "Very pleasant"],
-      ["arousal", "Very calm", "Very excited"],
+      ["pleasure", "Very unpleasant/unhappy", "Very pleasant/happy"],
+      ["arousal", "Very calm/sleepy", "Very stimulated/aroused"],
       ["dominance", "Completely controlled by the situation", "Completely in control of the situation"],
     ];
     const SAM_VALUES = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
@@ -595,11 +595,11 @@
       ["fear", "Fear"], ["anger", "Anger"], ["disgust", "Disgust"], ["contempt", "Contempt"],
     ];
 
-    // The child-behavior checklist shown only on the rehearsal (post-trial,
-    // pre-feedback) slot. Multi-select; "None" is mutually exclusive.
+    // The child-behavior question shown only on the rehearsal (post-trial,
+    // pre-feedback) slot. Single-select: exactly one option.
     const BEHAVIORS = [
-      ["vocalization", "Vocalization"], ["noncompliance", "Noncompliance"],
-      ["disruption", "Disruption"], ["repetition", "Repetition"], ["none", "None"],
+      ["screaming", "Screaming"], ["demanding", "Demanding"],
+      ["repetition", "Repetition"], ["none", "None"],
     ];
 
     // Build one PAD block (3 SAM rows) + its "overall feeling" card into `parent`.
@@ -698,21 +698,23 @@
       };
     }
 
-    // Build the multi-select behavior checklist into `parent`. "none" is exclusive.
+    // Build the single-select behavior question into `parent` (exactly one option).
+    // Keeps the values()/complete()/restore() interface (values -> a 0/1-element
+    // list) so the submit + autosave + draft-restore paths are unchanged.
     function buildChecklist(parent, question, hint, onChange) {
-      const selected = new Set();
+      let selected = null;
       const cellsByVal = {};
       const card = document.createElement("div"); card.className = "card";
       const q = document.createElement("div"); q.className = "qtext"; q.textContent = question;
       card.appendChild(q);
       if (hint) { const h = document.createElement("div"); h.className = "qhint"; h.textContent = hint; card.appendChild(h); }
       const opts = document.createElement("div"); opts.className = "opts";
-      opts.setAttribute("role", "group"); opts.setAttribute("aria-label", question);
+      opts.setAttribute("role", "radiogroup"); opts.setAttribute("aria-label", question);
       for (const [val, label] of BEHAVIORS) {
         const b = document.createElement("button");
         b.type = "button"; b.className = "opt"; b.textContent = label;
-        b.setAttribute("aria-pressed", "false");
-        b.onclick = () => toggle(val);
+        b.setAttribute("role", "radio"); b.setAttribute("aria-checked", "false");
+        b.onclick = () => select(val);
         cellsByVal[val] = b;
         opts.appendChild(b);
       }
@@ -721,27 +723,17 @@
 
       function paint() {
         for (const [val, el] of Object.entries(cellsByVal)) {
-          const on = selected.has(val);
+          const on = selected === val;
           el.classList.toggle("selected", on);
-          el.setAttribute("aria-pressed", on ? "true" : "false");
+          el.setAttribute("aria-checked", on ? "true" : "false");
         }
       }
-      function toggle(val) {
-        if (val === "none") {
-          if (selected.has("none")) selected.delete("none");
-          else { selected.clear(); selected.add("none"); }
-        } else {
-          selected.delete("none");
-          if (selected.has(val)) selected.delete(val); else selected.add(val);
-        }
-        paint(); onChange();
-      }
+      function select(val) { selected = val; paint(); onChange(); }
       return {
-        values() { return BEHAVIORS.map(([v]) => v).filter(v => selected.has(v)); },
-        complete() { return selected.size >= 1; },
+        values() { return selected ? [selected] : []; },
+        complete() { return selected !== null; },
         restore(arr) {
-          selected.clear();
-          (arr || []).forEach(v => { if (cellsByVal[v]) selected.add(v); });
+          selected = (arr && arr.length && cellsByVal[arr[0]]) ? arr[0] : null;
           paint();
         },
       };
@@ -761,12 +753,12 @@
                  "Please answer about the round you just finished. Tap the picture — or the space between two pictures — that best matches how you feel.");
         srChecklist = buildChecklist(items,
           "Did the child exhibit any of the following behaviors?",
-          "Select all that apply.", onChange);
+          "Select one.", onChange);
         const s1 = document.createElement("div"); s1.className = "sr-section";
-        s1.textContent = "How did the above behaviors make you feel?";
+        s1.textContent = "How did the above behavior make you feel?";
         items.appendChild(s1);
         srBlocks.child = buildSamEmotionBlock(items,
-          "Overall, which of these best describes how the above behaviors made you feel?", onChange);
+          "Overall, which of these best describes how the above behavior made you feel?", onChange);
         const s2 = document.createElement("div"); s2.className = "sr-section";
         s2.textContent = "How did you feel about how you handled the interaction?";
         items.appendChild(s2);
