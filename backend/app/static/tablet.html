@@ -317,23 +317,31 @@
       let rounds = "", now = "";
       if (phaseKey === "rehearsal") {
         const total = p.rounds_total || 6;
-        // Strictly chronological pointer to the SD to deliver NOW: gate-derived,
-        // starts at 1 and advances one step only when a loop fully completes.
-        // Never driven by the (possibly jumpy) live monitor, so it can't skip.
-        const next = Number.isInteger(p.next_sd)
-          ? p.next_sd
-          : Math.min((p.rounds_done || 0) + 1, total);
-        const doneCount = p.rounds_done || 0;
+        // Which SDs are actually done (the completed SET, not a count) -- SDs can
+        // be completed out of order, so done-marking must test membership.
+        const done = Array.isArray(p.completed_sds) ? p.completed_sds : [];
+        const isDone = (n) => done.includes(n);
+        // The SD to deliver NOW = the earliest SD not yet done. Gate-derived and
+        // never from the (possibly jumpy) live monitor. Trust the backend's value
+        // when present (integer, or null when all six are done); only compute the
+        // earliest gap client-side if the field is absent.
+        let next;
+        if ("next_sd" in p) {
+          next = p.next_sd;
+        } else {
+          next = null;
+          for (let i = 1; i <= total; i++) { if (!isDone(i)) { next = i; break; } }
+        }
         const sds = Array.isArray(p.rehearsal_sds) ? p.rehearsal_sds : [];
 
         if (sds.length) {
           const items = sds.map(sd => {
             const n = sd.number;
             let c = "pg-sd";
-            if (n <= doneCount) c += " done";
+            if (isDone(n)) c += " done";
             else if (n === next) c += " current";
             const isCurrent = (n === next);
-            const numMark = (n <= doneCount) ? "✓" : String(n);
+            const numMark = isDone(n) ? "✓" : String(n);
             const name = sd.name || ("SD " + n);
             const prompt = sd.prompt
               ? '<div class="prompt">“' + esc(sd.prompt) + '”</div>' : '';
@@ -354,7 +362,7 @@
           let dots = "";
           for (let i = 1; i <= total; i++) {
             let c = "pg-dot";
-            if (i <= doneCount) c += " done";
+            if (isDone(i)) c += " done";
             else if (i === next) c += " current";
             dots += '<div class="' + c + '"></div>';
           }

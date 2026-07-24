@@ -131,9 +131,13 @@ def compute_progress(db: Session, session: StudySession) -> dict:
     stage_keys = {g.stage_key for g in gates if g.scope == "stage" and g.stage_key}
     loop_gates = [g for g in gates if g.scope == "loop"]
     current_round = max((g.loop_index for g in loop_gates if g.loop_index), default=0)
-    rounds_done = len(
+    # The actual SET of completed SD numbers (loops whose feedback gate exists),
+    # NOT a count -- SDs can be completed out of order, so which ones are done
+    # cannot be inferred from a count alone.
+    completed_sds = sorted(
         {g.loop_index for g in loop_gates if g.checkpoint == "post_feedback" and g.loop_index}
     )
+    rounds_done = len(completed_sds)  # kept for any count-based consumer
 
     state = session.state
     if state == "completed":
@@ -153,16 +157,19 @@ def compute_progress(db: Session, session: StudySession) -> dict:
         phase = "tutorial"  # robot started, first stage in progress
 
     if phase == "rehearsal":
-        # The SD to deliver NOW, strictly chronological: it points to trial N for
-        # the whole of loop N and only advances to N+1 once loop N fully completes
-        # (a post_feedback gate). Starts at 1, never jumps or goes backward. None
-        # once all six are delivered.
-        next_sd = rounds_done + 1 if rounds_done < REHEARSAL_ROUNDS else None
+        # The SD to deliver NOW = the EARLIEST SD (1..6) not yet completed, so the
+        # pointer always steers back to the correct next SD even if SDs were done
+        # out of order (e.g. 1 then 3 -> points to 2, not 4). In the normal in-order
+        # case this is exactly rounds_done + 1. None once all six are done.
+        next_sd = next(
+            (n for n in range(1, REHEARSAL_ROUNDS + 1) if n not in completed_sds), None
+        )
         return _base(
             session,
             "rehearsal",
             round=current_round,
             rounds_done=rounds_done,
+            completed_sds=completed_sds,
             next_sd=next_sd,
             rehearsal_sds=_rehearsal_sd_plan(db, session),
         )

@@ -117,6 +117,45 @@ def test_next_sd_starts_at_one_and_advances_strictly(client, protocol_id):
     assert _prog(client, sid)["next_sd"] is None
 
 
+def _complete_loop(client, sid, loop):
+    client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": loop})
+    client.post(f"/sessions/{sid}/sync/feedback-delivered", json={"loop_index": loop})
+
+
+def test_out_of_order_completion_points_to_earliest_gap(client, protocol_id):
+    """SDs done out of order: the completed SET (not a count) drives done-marking,
+    and next_sd is the earliest SD not yet done -- steering back to the gap."""
+    sid = _session(client, protocol_id, group=1)
+    for stage in ("tutorial", "instruction", "modeling"):
+        client.post(f"/sessions/{sid}/sync/stage-complete", json={"stage": stage})
+
+    # complete 1 then 3 (skip 2)
+    _complete_loop(client, sid, 1)
+    _complete_loop(client, sid, 3)
+    p = _prog(client, sid)
+    assert p["completed_sds"] == [1, 3]      # the actual set, not [1, 2]
+    assert p["next_sd"] == 2                  # earliest gap, not 4
+    assert p["rounds_done"] == 2              # count kept for compat
+
+    # complete 5 too -> still points back to 2
+    _complete_loop(client, sid, 5)
+    p = _prog(client, sid)
+    assert p["completed_sds"] == [1, 3, 5]
+    assert p["next_sd"] == 2
+
+    # fill the gaps -> pointer moves forward again
+    _complete_loop(client, sid, 2)
+    assert _prog(client, sid)["next_sd"] == 4  # 1,2,3,5 done -> earliest gap is 4
+
+
+def test_completed_sds_starts_empty_and_points_to_one(client, protocol_id):
+    sid = _session(client, protocol_id, group=1)
+    for stage in ("tutorial", "instruction", "modeling"):
+        client.post(f"/sessions/{sid}/sync/stage-complete", json={"stage": stage})
+    p = _prog(client, sid)
+    assert p["completed_sds"] == [] and p["next_sd"] == 1
+
+
 def test_rehearsal_sd_plan_falls_back_to_numbers_without_group(client, protocol_id):
     """No pb_order_group: the plan still has six numbered slots, names/prompts null
     (the tablet then shows a bare number)."""
