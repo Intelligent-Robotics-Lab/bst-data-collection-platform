@@ -208,7 +208,8 @@ Participant self-reports (PAD + ratings), continuous bipolar sliders in [-5, +5]
   6). The `post_kid_response` gate closes on the `self_handling` row.
 - `child_behaviors` - the single-select child-behavior answer on the rehearsal
   slot, stored as a one-element JSON list: one of `screaming | demanding |
-  repetition | none`. Set only on the `child_behavior` row; NULL elsewhere.
+  repetition | none` (the `screaming` value is shown on the tablet as
+  "Screaming and avoiding"). Set only on the `child_behavior` row; NULL elsewhere.
 - `emotion_category` - categorical "overall feeling" (8-class: `neutral | happy |
   sad | surprise | fear | anger | disgust | contempt`), asked alongside the SAM.
 - Sliders (COLLECTED): the PAD affect model only - `pleasure` (==valence),
