@@ -35,9 +35,10 @@ def _ctx(**over):
 
 
 def _pad(**over):
-    """A valid full answer set: three SAM ints + the categorical emotion; all
-    required at submit."""
-    pad = {"pleasure": 2, "arousal": -1, "dominance": 0, "emotion_category": "happy"}
+    """A valid full answer set: three SAM ints + the four task-feeling ratings
+    (1..5); all required at submit."""
+    pad = {"pleasure": 2, "arousal": -1, "dominance": 0,
+           "enjoyment": 2, "confusion": 4, "frustration": 5, "boredom": 1}
     pad.update(over)
     return pad
 
@@ -81,7 +82,9 @@ def test_finalized_row_is_tagged_sam9(client, _session_factory):
     assert meta["instrument"] == "SAM-9"
     assert meta["scale_min"] == -4 and meta["scale_max"] == 4
     assert meta["pleasure"] == 4  # sliders stay flat in raw_json alongside the tag
-    assert meta["emotion_category"] == "happy"
+    # the four feeling ratings are stored flat in raw_json too
+    assert meta["enjoyment"] == 2 and meta["confusion"] == 4
+    assert meta["frustration"] == 5 and meta["boredom"] == 1
 
 
 def test_two_self_reports_listed_in_order(client):
@@ -115,27 +118,35 @@ def test_range_boundaries(client):
     assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(arousal=-5)}).status_code == 422
 
 
-def test_emotion_category_required_at_submit(client):
+def test_all_four_feelings_required_at_submit(client):
     sid = _running(client)
-    r = client.post(f"/sessions/{sid}/self-reports",
-                    json={**_ctx(), "pleasure": 2, "arousal": 0, "dominance": 0})
-    assert r.status_code == 422  # emotion_category missing
-
-
-def test_bad_emotion_category_is_422(client):
-    sid = _running(client)
-    r = client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(emotion_category="ecstatic")})
+    body = _pad()
+    del body["boredom"]  # one feeling missing
+    r = client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **body})
     assert r.status_code == 422
 
 
-def test_emotion_category_stored_returned_and_on_timeline(client):
+def test_feeling_out_of_range_is_422(client):
+    """Feeling ratings are integers 1..5; 0, 6, and 2.5 are all rejected."""
     sid = _running(client)
-    r = client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(emotion_category="anger")})
+    assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(confusion=0)}).status_code == 422
+    assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(confusion=6)}).status_code == 422
+    assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(confusion=2.5)}).status_code == 422
+    # boundaries 1 and 5 are valid
+    assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(confusion=1)}).status_code == 201
+    assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(confusion=5)}).status_code == 201
+
+
+def test_feelings_stored_returned_and_on_timeline(client):
+    sid = _running(client)
+    r = client.post(f"/sessions/{sid}/self-reports",
+                    json={**_ctx(), **_pad(enjoyment=1, confusion=2, frustration=3, boredom=4)})
     assert r.status_code == 201, r.text
-    assert r.json()["emotion_category"] == "anger"
+    body = r.json()
+    assert (body["enjoyment"], body["confusion"], body["frustration"], body["boredom"]) == (1, 2, 3, 4)
     tl = client.get(f"/sessions/{sid}/timeline", params={"format": "json"}).json()
     assert any(
-        e["type"] == "self_report_submitted" and e["payload"]["emotion_category"] == "anger" for e in tl
+        e["type"] == "self_report_submitted" and e["payload"]["frustration"] == 3 for e in tl
     )
 
 
@@ -195,12 +206,14 @@ def test_autosave_accepts_a_single_partial_pick(client):
     assert got["sliders"] == {"pleasure": 3, "arousal": None, "dominance": None}
 
 
-def test_autosave_restores_emotion_category(client):
+def test_autosave_restores_feelings(client):
+    """Partial autosave of the feeling ratings round-trips; unset ones stay null."""
     sid = _running(client)
     ctx = _ctx()
-    client.post(f"/sessions/{sid}/self-reports/autosave", json={**ctx, "emotion_category": "sad"})
+    client.post(f"/sessions/{sid}/self-reports/autosave",
+                json={**ctx, "enjoyment": 3, "boredom": 5})
     got = client.get(f"/sessions/{sid}/self-reports/draft", params=_draft_params(ctx)).json()
-    assert got["emotion_category"] == "sad"
+    assert got["emotions"] == {"enjoyment": 3, "confusion": None, "frustration": None, "boredom": 5}
     assert got["sliders"] == {"pleasure": None, "arousal": None, "dominance": None}
 
 

@@ -43,8 +43,10 @@ def _body(**over):
     b = {
         **_ctx(),
         "child_behaviors": ["screaming"],
-        "child_behavior_affect": {"pleasure": -3, "arousal": 2, "dominance": -1, "emotion_category": "fear"},
-        "self_handling_affect": {"pleasure": 1, "arousal": 0, "dominance": 2, "emotion_category": "happy"},
+        "child_behavior_affect": {"pleasure": -3, "arousal": 2, "dominance": -1,
+                                  "enjoyment": 1, "confusion": 4, "frustration": 5, "boredom": 2},
+        "self_handling_affect": {"pleasure": 1, "arousal": 0, "dominance": 2,
+                                 "enjoyment": 3, "confusion": 2, "frustration": 1, "boredom": 4},
     }
     b.update(over)
     return b
@@ -68,13 +70,13 @@ def test_writes_two_rows_with_referents_affect_and_checklist(client):
 
     child = by_ref["child_behavior"]
     assert (child["pleasure"], child["arousal"], child["dominance"]) == (-3, 2, -1)
-    assert child["emotion_category"] == "fear"
+    assert (child["enjoyment"], child["confusion"], child["frustration"], child["boredom"]) == (1, 4, 5, 2)
     # the single-select behavior attaches to the child_behavior row only
     assert child["child_behaviors"] == ["screaming"]
 
     handling = by_ref["self_handling"]
     assert (handling["pleasure"], handling["arousal"], handling["dominance"]) == (1, 0, 2)
-    assert handling["emotion_category"] == "happy"
+    assert (handling["enjoyment"], handling["confusion"], handling["frustration"], handling["boredom"]) == (3, 2, 1, 4)
     assert handling["child_behaviors"] is None
 
     # both share the same slot context
@@ -155,10 +157,17 @@ def test_partial_affect_set_is_422(client):
     assert client.post(_url(sid), json=body).status_code == 422
 
 
-def test_bad_emotion_in_a_set_is_422(client):
+def test_bad_feeling_in_a_set_is_422(client):
     sid = _running(client)
     body = _body()
-    body["self_handling_affect"]["emotion_category"] = "ecstatic"
+    body["self_handling_affect"]["confusion"] = 6  # feeling out of the 1..5 range
+    assert client.post(_url(sid), json=body).status_code == 422
+
+
+def test_missing_feeling_in_a_set_is_422(client):
+    sid = _running(client)
+    body = _body()
+    del body["child_behavior_affect"]["boredom"]
     assert client.post(_url(sid), json=body).status_code == 422
 
 
@@ -197,21 +206,21 @@ def test_autosave_restores_both_sets_and_checklist(client):
         json={
             **ctx,
             "child_behaviors": ["demanding"],
-            "pleasure": -2, "arousal": 3, "emotion_category": "sad",
+            "pleasure": -2, "arousal": 3, "enjoyment": 2, "frustration": 5,
             "handling_pleasure": 4, "handling_dominance": -1,
-            "handling_emotion_category": "contempt",
+            "handling_confusion": 3, "handling_boredom": 1,
         },
     )
     assert r.status_code == 200, r.text
 
     got = client.get(f"/sessions/{sid}/self-reports/draft", params=_draft_params(ctx)).json()
     assert got["found"] is True
-    # set A (child behavior)
+    # set A (child behavior): SAM + feelings, unset items stay null
     assert got["sliders"] == {"pleasure": -2, "arousal": 3, "dominance": None}
-    assert got["emotion_category"] == "sad"
+    assert got["emotions"] == {"enjoyment": 2, "confusion": None, "frustration": 5, "boredom": None}
     # set B (self handling)
     assert got["handling_sliders"] == {"pleasure": 4, "arousal": None, "dominance": -1}
-    assert got["handling_emotion_category"] == "contempt"
+    assert got["handling_emotions"] == {"enjoyment": None, "confusion": 3, "frustration": None, "boredom": 1}
     # behavior selection
     assert got["child_behaviors"] == ["demanding"]
 

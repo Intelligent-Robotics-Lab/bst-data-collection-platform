@@ -52,18 +52,28 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, futu
 # the startup DB backup. Fresh/test DBs get the column from the model via
 # create_all, so the check simply finds it present and skips.
 _ADDED_COLUMNS: list[tuple[str, str, str]] = [
-    ("participant_self_reports", "emotion_category", "TEXT"),
-    ("self_report_drafts", "emotion_category", "TEXT"),
     # Expanded rehearsal (post-trial/pre-feedback) self-report: two-row referent +
     # the child-behavior checklist on the raw table, and the matching second
-    # PAD+emotion set + checklist on the working-draft table.
+    # answer set + checklist on the working-draft table.
     ("participant_self_reports", "referent", "TEXT"),
     ("participant_self_reports", "child_behaviors", "TEXT"),
     ("self_report_drafts", "child_behaviors", "TEXT"),
     ("self_report_drafts", "handling_pleasure", "REAL"),
     ("self_report_drafts", "handling_arousal", "REAL"),
     ("self_report_drafts", "handling_dominance", "REAL"),
-    ("self_report_drafts", "handling_emotion_category", "TEXT"),
+    # Four independent task-feeling ratings (1..5) replacing the single-select
+    # emotion_category. `frustration` reuses the previously-retained slider column
+    # (already present on both tables), so it is not added here.
+    ("participant_self_reports", "enjoyment", "INTEGER"),
+    ("participant_self_reports", "confusion", "INTEGER"),
+    ("participant_self_reports", "boredom", "INTEGER"),
+    ("self_report_drafts", "enjoyment", "INTEGER"),
+    ("self_report_drafts", "confusion", "INTEGER"),
+    ("self_report_drafts", "boredom", "INTEGER"),
+    ("self_report_drafts", "handling_enjoyment", "INTEGER"),
+    ("self_report_drafts", "handling_confusion", "INTEGER"),
+    ("self_report_drafts", "handling_frustration", "INTEGER"),
+    ("self_report_drafts", "handling_boredom", "INTEGER"),
 ]
 
 

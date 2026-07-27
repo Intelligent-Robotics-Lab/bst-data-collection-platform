@@ -21,13 +21,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.timeutil import now_utc_iso
 from app.models.base import Base
 
-# Reusable bound for the nine bipolar self-report sliders.
+# Reusable bound for the bipolar self-report sliders ([-5, +5] check). NOTE:
+# `frustration` is no longer here -- it was repurposed as a 1..5 task-feeling
+# rating (see the emotion columns below), so it must not carry the [-5, +5] check.
 _SLIDER_FIELDS = (
     "pleasure",
     "arousal",
     "dominance",
     "confidence",
-    "frustration",
     "engagement",
     "perceived_challenge",
     "perceived_support",
@@ -100,16 +101,21 @@ class ParticipantSelfReport(Base):
     # row; NULL everywhere else.
     child_behaviors: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # PAD + ratings, continuous bipolar [-5, +5].
+    # PAD via 9-point SAM, integer [-4, +4] (column kept float for the pre-SAM
+    # continuous [-5, +5] pilot rows).
     pleasure: Mapped[float | None] = mapped_column(Float, nullable=True)  # == valence
     arousal: Mapped[float | None] = mapped_column(Float, nullable=True)
     dominance: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # Categorical "overall feeling" (8-class: neutral + 6 basic emotions +
-    # contempt), asked alongside the dimensional SAM. Nullable: rows written
-    # before this field never had it.
-    emotion_category: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Four independent task-related feeling intensities, integer 1..5 (1=Not at
+    # all .. 5=Very strong), asked alongside the SAM. Replaces the former
+    # single-select emotion_category. `frustration` reuses the previously-retained
+    # (never-collected) slider column. Nullable: unset = not answered.
+    enjoyment: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confusion: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    frustration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    boredom: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Retained (schema-stability) slider columns; not collected in this version.
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    frustration: Mapped[float | None] = mapped_column(Float, nullable=True)
     engagement: Mapped[float | None] = mapped_column(Float, nullable=True)
     perceived_challenge: Mapped[float | None] = mapped_column(Float, nullable=True)
     perceived_support: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -191,25 +197,28 @@ class SelfReportDraft(Base):
         ForeignKey("dtt_trials.trial_id"), nullable=True
     )
 
-    # The nine bipolar sliders, continuous [-5, +5] (true-zero center). For the
-    # rehearsal page these hold SET A (feeling about the child's behavior).
+    # SET A (simple form, or the child-behavior block of the rehearsal page):
+    # the 3 SAM sliders + the 4 task-feeling ratings (1..5).
     pleasure: Mapped[float | None] = mapped_column(Float, nullable=True)
     arousal: Mapped[float | None] = mapped_column(Float, nullable=True)
     dominance: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # Categorical "overall feeling" (8-class: neutral + 6 basic emotions +
-    # contempt), asked alongside the dimensional SAM. Nullable: rows written
-    # before this field never had it.
-    emotion_category: Mapped[str | None] = mapped_column(String, nullable=True)
+    enjoyment: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confusion: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    frustration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    boredom: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Rehearsal page only: the child-behavior checklist (JSON list) and SET B
-    # (feeling about how the participant handled the interaction). NULL on a
-    # simple-form draft.
+    # (how the participant handled the interaction): its SAM sliders + feelings.
+    # NULL on a simple-form draft.
     child_behaviors: Mapped[str | None] = mapped_column(String, nullable=True)
     handling_pleasure: Mapped[float | None] = mapped_column(Float, nullable=True)
     handling_arousal: Mapped[float | None] = mapped_column(Float, nullable=True)
     handling_dominance: Mapped[float | None] = mapped_column(Float, nullable=True)
-    handling_emotion_category: Mapped[str | None] = mapped_column(String, nullable=True)
+    handling_enjoyment: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    handling_confusion: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    handling_frustration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    handling_boredom: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Retained (schema-stability) slider columns; not collected in this version.
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    frustration: Mapped[float | None] = mapped_column(Float, nullable=True)
     engagement: Mapped[float | None] = mapped_column(Float, nullable=True)
     perceived_challenge: Mapped[float | None] = mapped_column(Float, nullable=True)
     perceived_support: Mapped[float | None] = mapped_column(Float, nullable=True)

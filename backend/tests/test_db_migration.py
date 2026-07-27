@@ -13,28 +13,35 @@ def _cols(conn, table):
 def test_ensure_added_columns_adds_missing_then_is_idempotent():
     eng = create_engine("sqlite://", future=True)
     with eng.begin() as c:
-        # old-schema tables WITHOUT emotion_category
+        # old-schema tables missing the post-release columns
         c.exec_driver_sql("CREATE TABLE participant_self_reports (self_report_id INTEGER PRIMARY KEY, pleasure REAL)")
         c.exec_driver_sql("CREATE TABLE self_report_drafts (draft_id INTEGER PRIMARY KEY, pleasure REAL)")
 
     added = ensure_added_columns(eng)
     assert set(added) == {
-        "participant_self_reports.emotion_category",
         "participant_self_reports.referent",
         "participant_self_reports.child_behaviors",
-        "self_report_drafts.emotion_category",
+        "participant_self_reports.enjoyment",
+        "participant_self_reports.confusion",
+        "participant_self_reports.boredom",
         "self_report_drafts.child_behaviors",
         "self_report_drafts.handling_pleasure",
         "self_report_drafts.handling_arousal",
         "self_report_drafts.handling_dominance",
-        "self_report_drafts.handling_emotion_category",
+        "self_report_drafts.enjoyment",
+        "self_report_drafts.confusion",
+        "self_report_drafts.boredom",
+        "self_report_drafts.handling_enjoyment",
+        "self_report_drafts.handling_confusion",
+        "self_report_drafts.handling_frustration",
+        "self_report_drafts.handling_boredom",
     }
     with eng.begin() as c:
         sr = _cols(c, "participant_self_reports")
-        assert {"emotion_category", "referent", "child_behaviors"} <= sr
+        assert {"referent", "child_behaviors", "enjoyment", "confusion", "boredom"} <= sr
         dr = _cols(c, "self_report_drafts")
-        assert {"emotion_category", "child_behaviors", "handling_pleasure",
-                "handling_arousal", "handling_dominance", "handling_emotion_category"} <= dr
+        assert {"child_behaviors", "handling_pleasure", "enjoyment", "confusion",
+                "boredom", "handling_enjoyment", "handling_frustration", "handling_boredom"} <= dr
 
     # second run is a no-op (idempotent)
     assert ensure_added_columns(eng) == []
