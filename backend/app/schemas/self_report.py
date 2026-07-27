@@ -142,14 +142,15 @@ class SelfReportDraftRead(BaseModel):
 
     found: bool
     context_key: str
-    # a value is None when that item has not been picked yet (partial draft)
-    sliders: dict[str, Optional[float]] = Field(default_factory=dict)
+    # SAM dimensions (pleasure/arousal/dominance), integer [-4, +4] or None if not
+    # picked yet (partial draft)
+    sliders: dict[str, Optional[int]] = Field(default_factory=dict)
     # the four feeling ratings (enjoyment/confusion/frustration/boredom), 1..5 or None
     emotions: dict[str, Optional[int]] = Field(default_factory=dict)
     # rehearsal page only: restored checklist + the second SAM+feelings set. None/
     # empty on a simple-form draft (the tablet ignores them there).
     child_behaviors: Optional[list[str]] = None
-    handling_sliders: dict[str, Optional[float]] = Field(default_factory=dict)
+    handling_sliders: dict[str, Optional[int]] = Field(default_factory=dict)
     handling_emotions: dict[str, Optional[int]] = Field(default_factory=dict)
 
 
@@ -173,20 +174,15 @@ class SelfReportRead(BaseModel):
     # the child-behavior checklist, stored as a JSON list on the child_behavior
     # row (parsed back to a list here); None on every other row
     child_behaviors: Optional[list[str]] = None
-    pleasure: Optional[float] = None
-    arousal: Optional[float] = None
-    dominance: Optional[float] = None
-    # four independent task-related feeling ratings, integer 1..5 (replaces the
-    # former single-select emotion_category)
+    # PAD via 9-point SAM, integer [-4, +4]
+    pleasure: Optional[int] = None
+    arousal: Optional[int] = None
+    dominance: Optional[int] = None
+    # four independent task-related feeling ratings, integer 1..5
     enjoyment: Optional[int] = None
     confusion: Optional[int] = None
     frustration: Optional[int] = None
     boredom: Optional[int] = None
-    confidence: Optional[float] = None
-    engagement: Optional[float] = None
-    perceived_challenge: Optional[float] = None
-    perceived_support: Optional[float] = None
-    cognitive_load: Optional[float] = None
     timestamp_utc: str
     session_time_ms: int
     created_at: str

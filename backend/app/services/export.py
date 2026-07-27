@@ -271,11 +271,6 @@ _ANALYSIS_SR_RAW = [
     "confusion",
     "frustration",
     "boredom",
-    "confidence",
-    "engagement",
-    "perceived_challenge",
-    "perceived_support",
-    "cognitive_load",
     "timestamp_utc",
     "session_time_ms",
 ]

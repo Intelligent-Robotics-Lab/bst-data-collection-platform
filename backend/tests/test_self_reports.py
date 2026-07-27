@@ -9,6 +9,9 @@ enums, and the trial_id FK are all guarded (clean 422).
 
 import json
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
 from app.models.signals import ParticipantSelfReport
 
 
@@ -52,12 +55,14 @@ def test_self_report_writes_row_and_timeline(client):
     assert r.status_code == 201, r.text
     body = r.json()
     assert body["source"] == "sr"
-    assert body["pleasure"] == 3
-    assert body["arousal"] == -2
-    assert body["dominance"] == 1
-    # PAD only: the removed dimensions are not collected (NULL, not a fake 0)
-    assert body["confidence"] is None
-    assert body["cognitive_load"] is None
+    # SAM returns as integers, not floats
+    assert body["pleasure"] == 3 and isinstance(body["pleasure"], int)
+    assert body["arousal"] == -2 and isinstance(body["arousal"], int)
+    assert body["dominance"] == 1 and isinstance(body["dominance"], int)
+    # the removed retained slider fields are gone from the response entirely
+    for gone in ("confidence", "engagement", "perceived_challenge",
+                 "perceived_support", "cognitive_load"):
+        assert gone not in body
     assert body["loop_index"] == 2 and body["phase"] == "rehearsal"
 
     tl = client.get(f"/sessions/{sid}/timeline", params={"format": "json"}).json()
@@ -116,6 +121,41 @@ def test_range_boundaries(client):
     assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(pleasure=-4)}).status_code == 201
     assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(pleasure=5)}).status_code == 422
     assert client.post(f"/sessions/{sid}/self-reports", json={**_ctx(), **_pad(arousal=-5)}).status_code == 422
+
+
+def _minimal_row(**over):
+    row = dict(
+        session_id="CK_S1", participant_id="CK", phase="tutorial", timepoint="post",
+        function_class="baseline", source="sr",
+        timestamp_utc="2026-01-01T00:00:00Z", session_time_ms=0,
+    )
+    row.update(over)
+    return ParticipantSelfReport(**row)
+
+
+def test_db_check_constraints_enforce_ranges(client, _session_factory):
+    """DB-level CHECKs reject out-of-range SAM/feeling values on a direct insert
+    that bypasses the API schema (belt-and-suspenders for the raw record)."""
+    client.post("/participants", json={"participant_id": "CK"})
+    client.post("/sessions", json={"session_id": "CK_S1", "participant_id": "CK", "scenario_type": "bst_dtt"})
+
+    for bad in ({"pleasure": 5}, {"dominance": -5}, {"enjoyment": 6}, {"boredom": 0}):
+        db = _session_factory()
+        try:
+            db.add(_minimal_row(**bad))
+            with pytest.raises(IntegrityError):
+                db.commit()
+        finally:
+            db.rollback()
+            db.close()
+
+    # in-range values commit fine
+    db = _session_factory()
+    try:
+        db.add(_minimal_row(pleasure=-4, dominance=4, enjoyment=1, boredom=5))
+        db.commit()
+    finally:
+        db.close()
 
 
 def test_all_four_feelings_required_at_submit(client):

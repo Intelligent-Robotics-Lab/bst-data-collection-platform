@@ -210,21 +210,17 @@ Participant self-reports (PAD + ratings), continuous bipolar sliders in [-5, +5]
   slot, stored as a one-element JSON list: one of `screaming | demanding |
   repetition | none` (the `screaming` value is shown on the tablet as
   "Screaming and avoiding"). Set only on the `child_behavior` row; NULL elsewhere.
+- SAM (COLLECTED): `pleasure` (==valence), `arousal`, `dominance`, collected as a
+  9-point Self-Assessment Manikin, **integer [-4, +4]** (DB CHECK-constrained;
+  raw_json carries instrument="SAM-9"). On a `child_behavior` or `self_handling`
+  row these hold that referent's SAM set.
 - Task-related feelings (COLLECTED): `enjoyment`, `confusion`, `frustration`,
-  `boredom` - four INDEPENDENT intensity ratings, integer **1..5** (1=Not at all,
-  2=Very little, 3=Moderate, 4=Strong, 5=Very strong). NOT a single dominant
-  emotion; each is answered on its own. Replaces the former single-select
-  `emotion_category`. `frustration` reuses the previously-retained slider column,
-  so on old rows it may be NULL; a value there is now a 1..5 rating.
-- Sliders (COLLECTED): the PAD affect model only - `pleasure` (==valence),
-  `arousal`, `dominance`, collected as a 9-point Self-Assessment Manikin, integer
-  [-4, +4] (raw_json carries instrument="SAM-9"). Pre-SAM pilot rows are
-  continuous [-5, +5] (raw_json has no instrument key). On a `child_behavior` or
-  `self_handling` row these hold that referent's SAM set.
-- Sliders (RETAINED, NOT collected): `confidence`, `engagement`,
-  `perceived_challenge`, `perceived_support`, `cognitive_load` remain as columns
-  for schema stability but are **NULL** (not a fake 0) - they are not asked in
-  this version of the self-report.
+  `boredom` - four INDEPENDENT intensity ratings, **integer 1..5** (1=Not at all,
+  2=Very little, 3=Moderate, 4=Strong, 5=Very strong; DB CHECK-constrained). NOT a
+  single dominant emotion; each is answered on its own.
+- These seven are the only self-report answer fields. (Earlier schema versions
+  carried unused `confidence`/`engagement`/`perceived_challenge`/`perceived_support`/
+  `cognitive_load` slider columns; they have been removed.)
 - `trial_id`, `raw_json`, `timestamp_utc`, `session_time_ms`, `created_at`.
 
 ### media_recordings.csv
