@@ -620,8 +620,13 @@
     const INTENSITY = [
       [1, "Not at all"], [2, "Very little"], [3, "Moderate"], [4, "Strong"], [5, "Very strong"],
     ];
+    // The task-feelings prompt is phrased per context (referent).
     const TASK_FEELINGS_Q =
       "During the part of the interaction that just occurred, how strongly did you experience each of the following?";
+    const TASK_FEELINGS_Q_CHILD =
+      "During the child robot's behavior that just occurred, how strongly did you experience each of the following?";
+    const TASK_FEELINGS_Q_HANDLING =
+      "While you were handling the child robot's behavior, how strongly did you experience each of the following?";
 
     // The child-behavior question shown only on the rehearsal (post-trial,
     // pre-feedback) slot. Single-select: exactly one option.
@@ -634,7 +639,7 @@
     // (four independent 1..5 intensity rows) into `parent`. Picks live in the
     // returned controller's own bucket, so several blocks coexist on one page
     // without sharing state.
-    function buildSamEmotionBlock(parent, onChange) {
+    function buildSamEmotionBlock(parent, feelingsQuestion, onChange) {
       const bucket = {
         pleasure: undefined, arousal: undefined, dominance: undefined,
         enjoyment: undefined, confusion: undefined, frustration: undefined, boredom: undefined,
@@ -681,7 +686,7 @@
       // Task-related feelings: a distinct card (extra top gap) with the question,
       // then four independent rows, each a radio group of five intensity levels.
       const card = document.createElement("div"); card.className = "card emo-intensity";
-      const q = document.createElement("div"); q.className = "qtext"; q.textContent = TASK_FEELINGS_Q;
+      const q = document.createElement("div"); q.className = "qtext"; q.textContent = feelingsQuestion;
       card.appendChild(q);
       for (const [emo, label] of TASK_FEELINGS) {
         const erow = document.createElement("div"); erow.className = "emo-row";
@@ -804,15 +809,15 @@
         const s1 = document.createElement("div"); s1.className = "sr-section";
         s1.textContent = "How did the above behavior make you feel?";
         items.appendChild(s1);
-        srBlocks.child = buildSamEmotionBlock(items, onChange);
+        srBlocks.child = buildSamEmotionBlock(items, TASK_FEELINGS_Q_CHILD, onChange);
         const s2 = document.createElement("div"); s2.className = "sr-section";
         s2.textContent = "How did you feel about how you handled the interaction?";
         items.appendChild(s2);
-        srBlocks.handling = buildSamEmotionBlock(items, onChange);
+        srBlocks.handling = buildSamEmotionBlock(items, TASK_FEELINGS_Q_HANDLING, onChange);
       } else {
         showForm("After this interaction, how do you feel?",
                  "For each row, tap the picture — or the space between two pictures — that best matches how you feel; then rate the feelings below.");
-        srBlocks.single = buildSamEmotionBlock(items, onChange);
+        srBlocks.single = buildSamEmotionBlock(items, TASK_FEELINGS_Q, onChange);
       }
       $("submit-btn").disabled = true;  // no default; every part must be answered
 
