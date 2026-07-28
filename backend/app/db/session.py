@@ -45,43 +45,6 @@ def _set_sqlite_pragma(dbapi_connection, connection_record):  # noqa: ANN001
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 
 
-# Columns added to existing tables after their first release. create_all only
-# CREATEs missing tables; it never ALTERs an existing one to add a column, so an
-# already-populated data/bst.db would lack these. ensure_added_columns() adds any
-# that are missing (nullable, non-destructive, idempotent) at startup -- run after
-# the startup DB backup. Fresh/test DBs get the column from the model via
-# create_all, so the check simply finds it present and skips.
-_ADDED_COLUMNS: list[tuple[str, str, str]] = [
-    ("participant_self_reports", "emotion_category", "TEXT"),
-    ("self_report_drafts", "emotion_category", "TEXT"),
-    # Expanded rehearsal (post-trial/pre-feedback) self-report: two-row referent +
-    # the child-behavior checklist on the raw table, and the matching second
-    # PAD+emotion set + checklist on the working-draft table.
-    ("participant_self_reports", "referent", "TEXT"),
-    ("participant_self_reports", "child_behaviors", "TEXT"),
-    ("self_report_drafts", "child_behaviors", "TEXT"),
-    ("self_report_drafts", "handling_pleasure", "REAL"),
-    ("self_report_drafts", "handling_arousal", "REAL"),
-    ("self_report_drafts", "handling_dominance", "REAL"),
-    ("self_report_drafts", "handling_emotion_category", "TEXT"),
-]
-
-
-def ensure_added_columns(bind: Engine = engine) -> list[str]:
-    """Add any post-release columns missing from existing tables. Returns the
-    'table.column' names it added (empty when nothing was needed)."""
-    added: list[str] = []
-    with bind.begin() as conn:
-        for table, col, decl in _ADDED_COLUMNS:
-            rows = conn.exec_driver_sql(f"PRAGMA table_info({table})").fetchall()
-            if not rows:
-                continue  # table not created yet; create_all will make it with the column
-            if col not in {r[1] for r in rows}:
-                conn.exec_driver_sql(f'ALTER TABLE "{table}" ADD COLUMN "{col}" {decl}')
-                added.append(f"{table}.{col}")
-    return added
-
-
 def get_db():
     """FastAPI dependency yielding a scoped Session per request."""
     db: Session = SessionLocal()

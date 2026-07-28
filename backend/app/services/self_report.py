@@ -27,20 +27,18 @@ from app.models.session import StudySession
 from app.models.signals import ParticipantSelfReport, SelfReportDraft
 from app.services.timeline import compute_session_time_ms, record_timeline_event
 
-# Only the PAD affect dimensions are collected. The other six slider columns
-# remain in the schema (nullable) for provenance/compatibility, but are not
-# collected here, so they stay NULL (honestly "not collected", never a fake 0).
-SLIDER_FIELDS = (
-    "pleasure",
-    "arousal",
-    "dominance",
-)
-# Set B of the expanded rehearsal page (feeling about how the participant handled
-# the interaction), autosaved on the draft alongside the SLIDER_FIELDS (set A).
-HANDLING_FIELDS = (
-    "handling_pleasure",
-    "handling_arousal",
-    "handling_dominance",
+# One answer set = the 3 SAM dimensions ([-4, +4]) + the 4 task-feeling ratings
+# (1..5). These seven are the only self-report answer fields collected.
+SLIDER_FIELDS = ("pleasure", "arousal", "dominance")
+EMOTION_FIELDS = ("enjoyment", "confusion", "frustration", "boredom")
+# Set B of the expanded rehearsal page (how the participant handled the
+# interaction), autosaved on the draft alongside set A above.
+HANDLING_FIELDS = ("handling_pleasure", "handling_arousal", "handling_dominance")
+HANDLING_EMOTION_FIELDS = (
+    "handling_enjoyment",
+    "handling_confusion",
+    "handling_frustration",
+    "handling_boredom",
 )
 
 # Provenance stamped into each finalized row's raw_json, so SAM-9 data is never
@@ -100,17 +98,15 @@ def _persist_report(
     now,
     *,
     referent: str,
-    pleasure,
-    arousal,
-    dominance,
-    emotion_category,
+    sam: dict,
+    emotions: dict,
     child_behaviors: list[str] | None = None,
 ) -> ParticipantSelfReport:
     """Insert one participant_self_reports row (raw record) + its timeline event.
-    Shared by the simple form (referent='overall') and the expanded rehearsal
-    form (two rows: 'child_behavior' + 'self_handling'). Does NOT commit -- the
-    caller owns the transaction so a multi-row submit is atomic."""
-    sliders = {"pleasure": pleasure, "arousal": arousal, "dominance": dominance}
+    ``sam`` is {pleasure, arousal, dominance}; ``emotions`` is the four task-feeling
+    ratings {enjoyment, confusion, frustration, boredom}. Shared by the simple form
+    (referent='overall') and the expanded rehearsal form (two rows). Does NOT
+    commit -- the caller owns the transaction so a multi-row submit is atomic."""
     behaviors_json = json.dumps(child_behaviors) if child_behaviors is not None else None
 
     report = ParticipantSelfReport(
@@ -127,11 +123,10 @@ def _persist_report(
         before_after_robot_action=ctx.before_after_robot_action,
         referent=referent,
         child_behaviors=behaviors_json,
-        emotion_category=emotion_category,
         raw_json=json.dumps(
             {
-                **sliders,
-                "emotion_category": emotion_category,
+                **sam,
+                **emotions,
                 "referent": referent,
                 "child_behaviors": child_behaviors,
                 "instrument": INSTRUMENT,
@@ -141,7 +136,8 @@ def _persist_report(
         ),
         timestamp_utc=now.isoformat(),
         session_time_ms=compute_session_time_ms(session, now),
-        **sliders,
+        **sam,
+        **emotions,
     )
     db.add(report)
     db.flush()
@@ -163,8 +159,8 @@ def _persist_report(
             "before_after_robot_action": report.before_after_robot_action,
             "referent": report.referent,
             "child_behaviors": child_behaviors,
-            "emotion_category": report.emotion_category,
-            **sliders,
+            **sam,
+            **emotions,
         },
         ref_table="participant_self_reports",
         ref_id=str(report.self_report_id),
@@ -185,10 +181,8 @@ def add_self_report(db: Session, session: StudySession, payload) -> ParticipantS
         payload,
         now,
         referent="overall",
-        pleasure=payload.pleasure,
-        arousal=payload.arousal,
-        dominance=payload.dominance,
-        emotion_category=payload.emotion_category,
+        sam={f: getattr(payload, f) for f in SLIDER_FIELDS},
+        emotions={f: getattr(payload, f) for f in EMOTION_FIELDS},
     )
 
     # The raw record now owns this context; drop its working draft (same
@@ -225,19 +219,15 @@ def add_rehearsal_self_report(
         _persist_report(
             db, session, payload, now,
             referent="child_behavior",
-            pleasure=child.pleasure,
-            arousal=child.arousal,
-            dominance=child.dominance,
-            emotion_category=child.emotion_category,
+            sam={f: getattr(child, f) for f in SLIDER_FIELDS},
+            emotions={f: getattr(child, f) for f in EMOTION_FIELDS},
             child_behaviors=payload.child_behaviors,
         ),
         _persist_report(
             db, session, payload, now,
             referent="self_handling",
-            pleasure=handling.pleasure,
-            arousal=handling.arousal,
-            dominance=handling.dominance,
-            emotion_category=handling.emotion_category,
+            sam={f: getattr(handling, f) for f in SLIDER_FIELDS},
+            emotions={f: getattr(handling, f) for f in EMOTION_FIELDS},
         ),
     ]
 
@@ -258,24 +248,24 @@ def save_draft(db: Session, session: StudySession, payload) -> dict:
     _guard_trial(db, session, payload.trial_id)
 
     key = context_key(payload)
-    sliders = {f: getattr(payload, f) for f in SLIDER_FIELDS}
-    # Rehearsal-page extras; None/absent for the simple form (harmless there).
-    handling = {f: getattr(payload, f, None) for f in HANDLING_FIELDS}
+    # Set A (simple form) + set B (rehearsal handling_*). getattr with a default
+    # tolerates the simple-form payload, which lacks the handling_* fields.
+    answers = {
+        **{f: getattr(payload, f, None) for f in SLIDER_FIELDS},
+        **{f: getattr(payload, f, None) for f in EMOTION_FIELDS},
+        **{f: getattr(payload, f, None) for f in HANDLING_FIELDS},
+        **{f: getattr(payload, f, None) for f in HANDLING_EMOTION_FIELDS},
+    }
     behaviors = getattr(payload, "child_behaviors", None)
     behaviors_json = json.dumps(behaviors) if behaviors is not None else None
-    handling_emotion = getattr(payload, "handling_emotion_category", None)
     now_iso = now_utc().isoformat()
 
     draft = _find_draft(db, session.session_id, key)
     if draft is not None:
-        for f, v in sliders.items():
+        for f, v in answers.items():
             setattr(draft, f, v)
-        for f, v in handling.items():
-            setattr(draft, f, v)
-        draft.emotion_category = payload.emotion_category
-        draft.handling_emotion_category = handling_emotion
         draft.child_behaviors = behaviors_json
-        draft.raw_json = json.dumps({**sliders, **handling})
+        draft.raw_json = json.dumps(answers)
         draft.updated_at = now_iso
     else:
         db.add(
@@ -284,13 +274,10 @@ def save_draft(db: Session, session: StudySession, payload) -> dict:
                 participant_id=session.participant_id,
                 context_key=key,
                 **{f: getattr(payload, f) for f in CONTEXT_FIELDS},
-                emotion_category=payload.emotion_category,
-                handling_emotion_category=handling_emotion,
                 child_behaviors=behaviors_json,
-                raw_json=json.dumps({**sliders, **handling}),
+                raw_json=json.dumps(answers),
                 updated_at=now_iso,
-                **sliders,
-                **handling,
+                **answers,
             )
         )
     db.commit()
@@ -312,11 +299,13 @@ def get_draft(db: Session, session: StudySession, ctx) -> dict:
         "found": True,
         "context_key": key,
         "sliders": {f: getattr(draft, f) for f in SLIDER_FIELDS},
-        "emotion_category": draft.emotion_category,
+        "emotions": {f: getattr(draft, f) for f in EMOTION_FIELDS},
         # rehearsal-page extras (None/empty on a simple-form draft)
         "child_behaviors": behaviors,
         "handling_sliders": {
             f.replace("handling_", ""): getattr(draft, f) for f in HANDLING_FIELDS
         },
-        "handling_emotion_category": draft.handling_emotion_category,
+        "handling_emotions": {
+            f.replace("handling_", ""): getattr(draft, f) for f in HANDLING_EMOTION_FIELDS
+        },
     }

@@ -66,8 +66,21 @@
     /* intermediate "between" marker: a plain vertical divider, deliberately not a face/body */
     .sam-between { width: 0; height: 52%; border-left: 3px dashed #aab3bb; }
     .sam-cell.selected .sam-between { border-left-color: var(--accent); border-left-style: solid; }
-    /* the categorical question sits after the PAD rows, with a little extra gap above it */
-    .emo-card { margin-top: 1.5rem; }
+    /* Task-related feelings: a distinct card after the SAM rows (extra top gap +
+       accent top edge) with four independent 1..5 intensity rows. */
+    .emo-intensity { margin-top: 1.5rem; border-top: 3px solid var(--accent); }
+    .emo-intensity .qtext { margin-bottom: 0.9rem; }
+    .emo-row { margin-bottom: 0.9rem; }
+    .emo-row:last-child { margin-bottom: 0.1rem; }
+    .emo-label { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.35rem; }
+    /* five equal, tablet-friendly targets per row; shrink-to-fit, never scroll */
+    .emo-levels { display: flex; gap: 6px; touch-action: manipulation; }
+    .emo-level { flex: 1 1 0; min-width: 0; text-align: center; border: 2px solid #cdd5db;
+      border-radius: 10px; background: #fff; padding: 0.55rem 0.25rem; min-height: 60px;
+      font-size: 0.9rem; line-height: 1.15; cursor: pointer; user-select: none;
+      display: flex; align-items: center; justify-content: center; }
+    .emo-level:active { transform: scale(0.97); }
+    .emo-level.selected { border-color: var(--accent); background: #e8f7ef; font-weight: 600; }
     /* section heading for the expanded rehearsal form (checklist + two PAD blocks) */
     .sr-section { font-size: 1.12rem; font-weight: 700; color: #223; margin: 1.7rem 0 0.6rem; }
     button.submit {
@@ -564,14 +577,15 @@
         extra = {
           child_behaviors: srChecklist ? srChecklist.values() : [],
           pleasure: c.pleasure, arousal: c.arousal, dominance: c.dominance,
-          emotion_category: c.emotion_category,
-          handling_pleasure: h.pleasure, handling_arousal: h.arousal,
-          handling_dominance: h.dominance, handling_emotion_category: h.emotion_category,
+          enjoyment: c.enjoyment, confusion: c.confusion, frustration: c.frustration, boredom: c.boredom,
+          handling_pleasure: h.pleasure, handling_arousal: h.arousal, handling_dominance: h.dominance,
+          handling_enjoyment: h.enjoyment, handling_confusion: h.confusion,
+          handling_frustration: h.frustration, handling_boredom: h.boredom,
         };
       } else {
         const b = srBlocks.single.bucket;
         extra = { pleasure: b.pleasure, arousal: b.arousal, dominance: b.dominance,
-                  emotion_category: b.emotion_category };
+                  enjoyment: b.enjoyment, confusion: b.confusion, frustration: b.frustration, boredom: b.boredom };
       }
       const body = Object.assign({}, ctx, extra);
       try {
@@ -597,11 +611,22 @@
     ];
     const SAM_VALUES = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
     const SAM_FIG = new Set([-4, -2, 0, 2, 4]);  // have a manikin image; the rest are gaps
-    // Categorical "overall feeling" (single-select), captured as emotion_category.
-    const EMOTIONS = [
-      ["neutral", "Neutral"], ["happy", "Happy"], ["sad", "Sad"], ["surprise", "Surprise"],
-      ["fear", "Fear"], ["anger", "Anger"], ["disgust", "Disgust"], ["contempt", "Contempt"],
+    // Task-related feelings: four INDEPENDENT intensity ratings (each its own
+    // radio group), captured as integers 1..5. Not one single-choice category.
+    const TASK_FEELINGS = [
+      ["enjoyment", "Enjoyment"], ["confusion", "Confusion"],
+      ["frustration", "Frustration"], ["boredom", "Boredom"],
     ];
+    const INTENSITY = [
+      [1, "Not at all"], [2, "Very little"], [3, "Moderate"], [4, "Strong"], [5, "Very strong"],
+    ];
+    // The task-feelings prompt is phrased per context (referent).
+    const TASK_FEELINGS_Q =
+      "During the part of the interaction that just occurred, how strongly did you experience each of the following?";
+    const TASK_FEELINGS_Q_CHILD =
+      "During the child robot's behavior that just occurred, how strongly did you experience each of the following?";
+    const TASK_FEELINGS_Q_HANDLING =
+      "While you were handling the child robot's behavior, how strongly did you experience each of the following?";
 
     // The child-behavior question shown only on the rehearsal (post-trial,
     // pre-feedback) slot. Single-select: exactly one option.
@@ -610,12 +635,17 @@
       ["repetition", "Repetition"], ["none", "None"],
     ];
 
-    // Build one PAD block (3 SAM rows) + its "overall feeling" card into `parent`.
-    // Picks live in the returned controller's own bucket, so several blocks
-    // coexist on one page without sharing state.
-    function buildSamEmotionBlock(parent, emoQuestion, onChange) {
-      const bucket = { pleasure: undefined, arousal: undefined, dominance: undefined, emotion_category: undefined };
-      const cells = {}, checks = {}, emoCells = {};
+    // Build one answer block: the 3 SAM rows + the task-related feelings section
+    // (four independent 1..5 intensity rows) into `parent`. Picks live in the
+    // returned controller's own bucket, so several blocks coexist on one page
+    // without sharing state.
+    function buildSamEmotionBlock(parent, feelingsQuestion, onChange) {
+      const bucket = {
+        pleasure: undefined, arousal: undefined, dominance: undefined,
+        enjoyment: undefined, confusion: undefined, frustration: undefined, boredom: undefined,
+      };
+      const cells = {}, checks = {};
+      const emoCells = {};  // feeling -> { value(1..5) -> button }
 
       for (const [key, lo, hi] of SAM) {
         const card = document.createElement("div"); card.className = "card sam-card";
@@ -653,21 +683,30 @@
         parent.appendChild(card);
       }
 
-      // "Overall feeling" (single-select), with a little extra gap above it.
-      const card = document.createElement("div"); card.className = "card emo-card";
-      const q = document.createElement("div"); q.className = "qtext"; q.textContent = emoQuestion;
+      // Task-related feelings: a distinct card (extra top gap) with the question,
+      // then four independent rows, each a radio group of five intensity levels.
+      const card = document.createElement("div"); card.className = "card emo-intensity";
+      const q = document.createElement("div"); q.className = "qtext"; q.textContent = feelingsQuestion;
       card.appendChild(q);
-      const opts = document.createElement("div"); opts.className = "opts";
-      opts.setAttribute("role", "radiogroup"); opts.setAttribute("aria-label", "Overall feeling");
-      for (const [val, label] of EMOTIONS) {
-        const b = document.createElement("button");
-        b.type = "button"; b.className = "opt"; b.textContent = label;
-        b.setAttribute("role", "radio"); b.setAttribute("aria-checked", "false");
-        b.onclick = () => pickEmo(val);
-        emoCells[val] = b;
-        opts.appendChild(b);
+      for (const [emo, label] of TASK_FEELINGS) {
+        const erow = document.createElement("div"); erow.className = "emo-row";
+        const lab = document.createElement("div"); lab.className = "emo-label"; lab.textContent = label;
+        erow.appendChild(lab);
+        const levels = document.createElement("div"); levels.className = "emo-levels";
+        levels.setAttribute("role", "radiogroup"); levels.setAttribute("aria-label", label);
+        emoCells[emo] = {};
+        for (const [val, llabel] of INTENSITY) {
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "emo-level"; b.textContent = llabel;
+          b.setAttribute("role", "radio"); b.setAttribute("aria-checked", "false");
+          b.setAttribute("aria-label", label + ": " + llabel);
+          b.onclick = () => pickEmo(emo, val);
+          emoCells[emo][val] = b;
+          levels.appendChild(b);
+        }
+        erow.appendChild(levels);
+        card.appendChild(erow);
       }
-      card.appendChild(opts);
       parent.appendChild(card);
 
       function pickSam(key, v) {
@@ -680,10 +719,11 @@
         checks[key].textContent = "✓";
         onChange();
       }
-      function pickEmo(val) {
-        bucket.emotion_category = val;
-        for (const [v, el] of Object.entries(emoCells)) {
-          const on = v === val;
+      // Single-select WITHIN one feeling row; independent across rows.
+      function pickEmo(emo, val) {
+        bucket[emo] = val;
+        for (const [v, el] of Object.entries(emoCells[emo])) {
+          const on = Number(v) === val;
           el.classList.toggle("selected", on);
           el.setAttribute("aria-checked", on ? "true" : "false");
         }
@@ -693,15 +733,19 @@
         bucket,
         complete() {
           return SAM.every(([k]) => Number.isInteger(bucket[k])) &&
-                 typeof bucket.emotion_category === "string";
+                 TASK_FEELINGS.every(([e]) => Number.isInteger(bucket[e]));
         },
-        restore(sliders, emotion) {
+        restore(sliders, emotions) {
           for (const [k, v] of Object.entries(sliders || {})) {
             if (v === null || v === undefined) continue;
             const iv = Math.round(Number(v));
             if (cells[k] && cells[k][iv]) pickSam(k, iv);
           }
-          if (emotion && emoCells[emotion]) pickEmo(emotion);
+          for (const [e, v] of Object.entries(emotions || {})) {
+            if (v === null || v === undefined) continue;
+            const iv = Math.round(Number(v));
+            if (emoCells[e] && emoCells[e][iv]) pickEmo(e, iv);
+          }
         },
       };
     }
@@ -765,18 +809,15 @@
         const s1 = document.createElement("div"); s1.className = "sr-section";
         s1.textContent = "How did the above behavior make you feel?";
         items.appendChild(s1);
-        srBlocks.child = buildSamEmotionBlock(items,
-          "Overall, which of these best describes how the above behavior made you feel?", onChange);
+        srBlocks.child = buildSamEmotionBlock(items, TASK_FEELINGS_Q_CHILD, onChange);
         const s2 = document.createElement("div"); s2.className = "sr-section";
         s2.textContent = "How did you feel about how you handled the interaction?";
         items.appendChild(s2);
-        srBlocks.handling = buildSamEmotionBlock(items,
-          "Overall, which of these best describes how you felt about how you handled it?", onChange);
+        srBlocks.handling = buildSamEmotionBlock(items, TASK_FEELINGS_Q_HANDLING, onChange);
       } else {
         showForm("After this interaction, how do you feel?",
-                 "For each row, tap the picture — or the space between two pictures — that best matches how you feel; then pick the overall feeling below.");
-        srBlocks.single = buildSamEmotionBlock(items,
-          "Overall, which of these best describes how the robot made you feel?", onChange);
+                 "For each row, tap the picture — or the space between two pictures — that best matches how you feel; then rate the feelings below.");
+        srBlocks.single = buildSamEmotionBlock(items, TASK_FEELINGS_Q, onChange);
       }
       $("submit-btn").disabled = true;  // no default; every part must be answered
 
@@ -792,10 +833,10 @@
         if (d.found) {
           if (srMode === "rehearsal") {
             if (srChecklist) srChecklist.restore(d.child_behaviors);
-            srBlocks.child.restore(d.sliders, d.emotion_category);
-            srBlocks.handling.restore(d.handling_sliders, d.handling_emotion_category);
+            srBlocks.child.restore(d.sliders, d.emotions);
+            srBlocks.handling.restore(d.handling_sliders, d.handling_emotions);
           } else {
-            srBlocks.single.restore(d.sliders, d.emotion_category);
+            srBlocks.single.restore(d.sliders, d.emotions);
           }
         }
       } catch (e) { /* no prior draft */ }
@@ -840,18 +881,21 @@
     async function submitSelfReport() {
       const ctx = current.self_report_context || {};
       let url, body;
+      const affect = (x) => ({
+        pleasure: x.pleasure, arousal: x.arousal, dominance: x.dominance,
+        enjoyment: x.enjoyment, confusion: x.confusion, frustration: x.frustration, boredom: x.boredom,
+      });
       if (srMode === "rehearsal") {
         const c = srBlocks.child.bucket, h = srBlocks.handling.bucket;
         url = `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports/rehearsal`;
         body = Object.assign({}, ctx, {
           child_behaviors: srChecklist.values(),
-          child_behavior_affect: { pleasure: c.pleasure, arousal: c.arousal, dominance: c.dominance, emotion_category: c.emotion_category },
-          self_handling_affect: { pleasure: h.pleasure, arousal: h.arousal, dominance: h.dominance, emotion_category: h.emotion_category },
+          child_behavior_affect: affect(c),
+          self_handling_affect: affect(h),
         });
       } else {
-        const b = srBlocks.single.bucket;
         url = `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports`;
-        body = Object.assign({}, ctx, { pleasure: b.pleasure, arousal: b.arousal, dominance: b.dominance, emotion_category: b.emotion_category });
+        body = Object.assign({}, ctx, affect(srBlocks.single.bucket));
       }
       const res = await fetch(url,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

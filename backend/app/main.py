@@ -6,7 +6,6 @@ create_all is idempotent). Run with:
 from the backend/ directory.
 """
 
-import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -38,7 +37,7 @@ from app.api import (
 )
 from app.core.config import settings
 from app.db import base as db_base  # noqa: F401  (registers all models on metadata)
-from app.db.session import SessionLocal, engine, ensure_added_columns
+from app.db.session import SessionLocal, engine
 from app.models import Base
 from app.services.backup import backup_database
 from app.services.protocol import register_protocols
@@ -57,11 +56,6 @@ async def lifespan(app: FastAPI):
     # Back up the existing DB BEFORE create_all so we capture the pre-run state.
     backup_database(reason="startup")
     Base.metadata.create_all(bind=engine)
-    # Add any post-release columns missing from an existing DB (nullable,
-    # non-destructive, idempotent). Safe here: the startup backup ran just above.
-    added = ensure_added_columns(engine)
-    if added:
-        logging.getLogger("bst").info("added missing columns: %s", ", ".join(added))
     # Register protocol configs (additive/idempotent) so the trial API can
     # validate against them and the experimenter can discover protocol_ids.
     db = SessionLocal()

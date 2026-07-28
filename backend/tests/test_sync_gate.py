@@ -53,8 +53,8 @@ def _rehearsal_body(**ctx):
     return {
         **ctx,
         "child_behaviors": ["screaming"],
-        "child_behavior_affect": {"pleasure": 0, "arousal": 0, "dominance": 0, "emotion_category": "neutral"},
-        "self_handling_affect": {"pleasure": 1, "arousal": -1, "dominance": 0, "emotion_category": "happy"},
+        "child_behavior_affect": {"pleasure": 0, "arousal": 0, "dominance": 0, "enjoyment": 1, "confusion": 1, "frustration": 1, "boredom": 1},
+        "self_handling_affect": {"pleasure": 1, "arousal": -1, "dominance": 0, "enjoyment": 2, "confusion": 3, "frustration": 4, "boredom": 5},
     }
 
 
@@ -88,7 +88,7 @@ def test_stage_gate_blocks_until_baseline_self_report(client, protocol_id):
     # baseline self-report (no loop_index) closes it
     r = client.post(
         f"/sessions/{sid}/self-reports",
-        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline", "pleasure": 0, "arousal": 0, "dominance": 0, "emotion_category": "neutral"},
+        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline", "pleasure": 0, "arousal": 0, "dominance": 0, "enjoyment": 1, "confusion": 1, "frustration": 1, "boredom": 1},
     )
     assert r.status_code == 201, r.text
     assert r.json()["loop_index"] is None  # baseline report has no loop
@@ -119,7 +119,7 @@ def test_loop_gates_post_kid_response_and_post_feedback(client, protocol_id):
     assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_feedback")["proceed"] is False
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"loop_index": 2, "phase": "feedback", "timepoint": "post", "function_class": "NR", "pleasure": 0, "arousal": 0, "dominance": 0, "emotion_category": "neutral"},
+        json={"loop_index": 2, "phase": "feedback", "timepoint": "post", "function_class": "NR", "pleasure": 0, "arousal": 0, "dominance": 0, "enjoyment": 1, "confusion": 1, "frustration": 1, "boredom": 1},
     )
     assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_feedback")["proceed"] is True
 
@@ -133,7 +133,7 @@ def test_post_kid_response_gate_needs_the_self_handling_row(client, protocol_id)
     # a single simple report (referent 'overall') does not satisfy the gate
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"loop_index": 2, "phase": "rehearsal", "timepoint": "post", "function_class": "NR", "pleasure": 0, "arousal": 0, "dominance": 0, "emotion_category": "neutral"},
+        json={"loop_index": 2, "phase": "rehearsal", "timepoint": "post", "function_class": "NR", "pleasure": 0, "arousal": 0, "dominance": 0, "enjoyment": 1, "confusion": 1, "frustration": 1, "boredom": 1},
     )
     assert _go(client, sid, scope="loop", loop_index=2, checkpoint="post_kid_response")["proceed"] is False
     # the expanded submission (self_handling row) releases it
@@ -168,7 +168,7 @@ def test_list_gates_returns_open_and_closed(client, protocol_id):
     client.post(f"/sessions/{sid}/sync/kid-response-complete", json={"loop_index": 2})
     client.post(
         f"/sessions/{sid}/self-reports",
-        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline", "pleasure": 0, "arousal": 0, "dominance": 0, "emotion_category": "neutral"},
+        json={"phase": "tutorial", "timepoint": "post", "function_class": "baseline", "pleasure": 0, "arousal": 0, "dominance": 0, "enjoyment": 1, "confusion": 1, "frustration": 1, "boredom": 1},
     )
     # poll closes the tutorial baseline gate via the matching self-report
     client.get(
