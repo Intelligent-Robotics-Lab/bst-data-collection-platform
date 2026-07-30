@@ -38,10 +38,10 @@ def _ctx(**over):
 
 
 def _pad(**over):
-    """A valid full answer set: three SAM ints + the four task-feeling ratings
+    """A valid full answer set: three SAM ints + the three task-feeling ratings
     (1..5); all required at submit."""
     pad = {"pleasure": 2, "arousal": -1, "dominance": 0,
-           "enjoyment": 2, "confusion": 4, "frustration": 5, "boredom": 1}
+           "confusion": 4, "frustration": 5, "boredom": 1}
     pad.update(over)
     return pad
 
@@ -88,7 +88,7 @@ def test_finalized_row_is_tagged_sam9(client, _session_factory):
     assert meta["scale_min"] == -4 and meta["scale_max"] == 4
     assert meta["pleasure"] == 4  # sliders stay flat in raw_json alongside the tag
     # the four feeling ratings are stored flat in raw_json too
-    assert meta["enjoyment"] == 2 and meta["confusion"] == 4
+    assert meta["confusion"] == 4 and meta["frustration"] == 5
     assert meta["frustration"] == 5 and meta["boredom"] == 1
 
 
@@ -139,7 +139,7 @@ def test_db_check_constraints_enforce_ranges(client, _session_factory):
     client.post("/participants", json={"participant_id": "CK"})
     client.post("/sessions", json={"session_id": "CK_S1", "participant_id": "CK", "scenario_type": "bst_dtt"})
 
-    for bad in ({"pleasure": 5}, {"dominance": -5}, {"enjoyment": 6}, {"boredom": 0}):
+    for bad in ({"pleasure": 5}, {"dominance": -5}, {"confusion": 6}, {"boredom": 0}):
         db = _session_factory()
         try:
             db.add(_minimal_row(**bad))
@@ -152,13 +152,13 @@ def test_db_check_constraints_enforce_ranges(client, _session_factory):
     # in-range values commit fine
     db = _session_factory()
     try:
-        db.add(_minimal_row(pleasure=-4, dominance=4, enjoyment=1, boredom=5))
+        db.add(_minimal_row(pleasure=-4, dominance=4, confusion=1, boredom=5))
         db.commit()
     finally:
         db.close()
 
 
-def test_all_four_feelings_required_at_submit(client):
+def test_all_three_feelings_required_at_submit(client):
     sid = _running(client)
     body = _pad()
     del body["boredom"]  # one feeling missing
@@ -180,10 +180,10 @@ def test_feeling_out_of_range_is_422(client):
 def test_feelings_stored_returned_and_on_timeline(client):
     sid = _running(client)
     r = client.post(f"/sessions/{sid}/self-reports",
-                    json={**_ctx(), **_pad(enjoyment=1, confusion=2, frustration=3, boredom=4)})
+                    json={**_ctx(), **_pad(confusion=2, frustration=3, boredom=4)})
     assert r.status_code == 201, r.text
     body = r.json()
-    assert (body["enjoyment"], body["confusion"], body["frustration"], body["boredom"]) == (1, 2, 3, 4)
+    assert (body["confusion"], body["frustration"], body["boredom"]) == (2, 3, 4)
     tl = client.get(f"/sessions/{sid}/timeline", params={"format": "json"}).json()
     assert any(
         e["type"] == "self_report_submitted" and e["payload"]["frustration"] == 3 for e in tl
@@ -251,9 +251,9 @@ def test_autosave_restores_feelings(client):
     sid = _running(client)
     ctx = _ctx()
     client.post(f"/sessions/{sid}/self-reports/autosave",
-                json={**ctx, "enjoyment": 3, "boredom": 5})
+                json={**ctx, "confusion": 3, "boredom": 5})
     got = client.get(f"/sessions/{sid}/self-reports/draft", params=_draft_params(ctx)).json()
-    assert got["emotions"] == {"enjoyment": 3, "confusion": None, "frustration": None, "boredom": 5}
+    assert got["emotions"] == {"confusion": 3, "frustration": None, "boredom": 5}
     assert got["sliders"] == {"pleasure": None, "arousal": None, "dominance": None}
 
 

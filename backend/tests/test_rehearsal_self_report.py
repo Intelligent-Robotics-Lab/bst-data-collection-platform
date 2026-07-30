@@ -44,9 +44,9 @@ def _body(**over):
         **_ctx(),
         "child_behaviors": ["screaming"],
         "child_behavior_affect": {"pleasure": -3, "arousal": 2, "dominance": -1,
-                                  "enjoyment": 1, "confusion": 4, "frustration": 5, "boredom": 2},
+                                  "confusion": 4, "frustration": 5, "boredom": 2},
         "self_handling_affect": {"pleasure": 1, "arousal": 0, "dominance": 2,
-                                 "enjoyment": 3, "confusion": 2, "frustration": 1, "boredom": 4},
+                                 "confusion": 2, "frustration": 1, "boredom": 4},
     }
     b.update(over)
     return b
@@ -70,13 +70,13 @@ def test_writes_two_rows_with_referents_affect_and_checklist(client):
 
     child = by_ref["child_behavior"]
     assert (child["pleasure"], child["arousal"], child["dominance"]) == (-3, 2, -1)
-    assert (child["enjoyment"], child["confusion"], child["frustration"], child["boredom"]) == (1, 4, 5, 2)
+    assert (child["confusion"], child["frustration"], child["boredom"]) == (4, 5, 2)
     # the single-select behavior attaches to the child_behavior row only
     assert child["child_behaviors"] == ["screaming"]
 
     handling = by_ref["self_handling"]
     assert (handling["pleasure"], handling["arousal"], handling["dominance"]) == (1, 0, 2)
-    assert (handling["enjoyment"], handling["confusion"], handling["frustration"], handling["boredom"]) == (3, 2, 1, 4)
+    assert (handling["confusion"], handling["frustration"], handling["boredom"]) == (2, 1, 4)
     assert handling["child_behaviors"] is None
 
     # both share the same slot context
@@ -206,7 +206,7 @@ def test_autosave_restores_both_sets_and_checklist(client):
         json={
             **ctx,
             "child_behaviors": ["demanding"],
-            "pleasure": -2, "arousal": 3, "enjoyment": 2, "frustration": 5,
+            "pleasure": -2, "arousal": 3, "confusion": 2, "frustration": 5,
             "handling_pleasure": 4, "handling_dominance": -1,
             "handling_confusion": 3, "handling_boredom": 1,
         },
@@ -217,10 +217,10 @@ def test_autosave_restores_both_sets_and_checklist(client):
     assert got["found"] is True
     # set A (child behavior): SAM + feelings, unset items stay null
     assert got["sliders"] == {"pleasure": -2, "arousal": 3, "dominance": None}
-    assert got["emotions"] == {"enjoyment": 2, "confusion": None, "frustration": 5, "boredom": None}
+    assert got["emotions"] == {"confusion": 2, "frustration": 5, "boredom": None}
     # set B (self handling)
     assert got["handling_sliders"] == {"pleasure": 4, "arousal": None, "dominance": -1}
-    assert got["handling_emotions"] == {"enjoyment": None, "confusion": 3, "frustration": None, "boredom": 1}
+    assert got["handling_emotions"] == {"confusion": 3, "frustration": None, "boredom": 1}
     # behavior selection
     assert got["child_behaviors"] == ["demanding"]
 

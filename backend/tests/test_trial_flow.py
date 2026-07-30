@@ -82,7 +82,7 @@ def test_phase_sd_and_skill_are_derived_when_omitted(client, protocol_id):
     assert body["phase_key"] == "rehearsal"          # only phase in the protocol
     assert body["sd_id"] == "sd_2"                    # positional cell for loop 2
     assert body["target_skill"] == "reception"        # group 1 loop 2 -> Receptive Instruction
-    assert body["instruction"] == "Can you shake your head?"
+    assert body["instruction"] == "Please shake your head."
 
 
 def test_derivation_follows_the_order_group(client, protocol_id):

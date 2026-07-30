@@ -132,7 +132,7 @@ def _add_steps(db: Session, session: StudySession, trial: DttTrial, steps, now: 
 
 def _named_sd_text(cfg: dict, session: StudySession, loop_index: int | None) -> str | None:
     """The real SD wording for the named SD occupying this loop, e.g. loop 2 of
-    order group 1 -> "Receptive Instruction" -> "Can you shake your head?".
+    order group 1 -> "Receptive Instruction" -> "Please shake your head.".
 
     Which named SD sits in a loop depends on the participant's pb_order_group
     (the Latin square), so this cannot come from the positional sd_id alone.

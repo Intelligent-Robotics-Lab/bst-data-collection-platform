@@ -15,8 +15,10 @@
 # keeps the provenance (config_hash) of the protocol it actually ran.
 # 1.1.0 corrects the Receptive Instruction SD ("Can you shake your head?") and the
 # error-correction HP SD ("Can you nod your head?"); 1.0.0 stays for its sessions.
+# 1.2.0 rephrases the Imitation SD ("Please do this.") and the Receptive
+# Instruction SD ("Please shake your head."); 1.1.0 stays for its sessions.
 protocol_key: bst_dtt_v1
-version: "1.1.0"
+version: "1.2.0"
 title: "BST/DTT protocol (human trainer -> child robot)"
 
 # This protocol has NO prompt-level hierarchy. When the child responds
@@ -67,7 +69,7 @@ named_sds:
     error_correction: false
 
   - name: "Receptive Instruction"
-    sd: "Can you shake your head?"
+    sd: "Please shake your head."
     sd_type: Reception
     target_skill: reception
     scripted_correctness: "No Response"
@@ -76,7 +78,7 @@ named_sds:
     error_correction: true
 
   - name: "Imitation"
-    sd: "Can you do this?"
+    sd: "Please do this."
     sd_type: Imitation
     target_skill: imitation
     scripted_correctness: "Correct"

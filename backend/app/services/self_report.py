@@ -27,15 +27,14 @@ from app.models.session import StudySession
 from app.models.signals import ParticipantSelfReport, SelfReportDraft
 from app.services.timeline import compute_session_time_ms, record_timeline_event
 
-# One answer set = the 3 SAM dimensions ([-4, +4]) + the 4 task-feeling ratings
-# (1..5). These seven are the only self-report answer fields collected.
+# One answer set = the 3 SAM dimensions ([-4, +4]) + the 3 task-feeling ratings
+# (1..5). These six are the only self-report answer fields collected.
 SLIDER_FIELDS = ("pleasure", "arousal", "dominance")
-EMOTION_FIELDS = ("enjoyment", "confusion", "frustration", "boredom")
+EMOTION_FIELDS = ("confusion", "frustration", "boredom")
 # Set B of the expanded rehearsal page (how the participant handled the
 # interaction), autosaved on the draft alongside set A above.
 HANDLING_FIELDS = ("handling_pleasure", "handling_arousal", "handling_dominance")
 HANDLING_EMOTION_FIELDS = (
-    "handling_enjoyment",
     "handling_confusion",
     "handling_frustration",
     "handling_boredom",
@@ -103,8 +102,8 @@ def _persist_report(
     child_behaviors: list[str] | None = None,
 ) -> ParticipantSelfReport:
     """Insert one participant_self_reports row (raw record) + its timeline event.
-    ``sam`` is {pleasure, arousal, dominance}; ``emotions`` is the four task-feeling
-    ratings {enjoyment, confusion, frustration, boredom}. Shared by the simple form
+    ``sam`` is {pleasure, arousal, dominance}; ``emotions`` is the three task-feeling
+    ratings {confusion, frustration, boredom}. Shared by the simple form
     (referent='overall') and the expanded rehearsal form (two rows). Does NOT
     commit -- the caller owns the transaction so a multi-row submit is atomic."""
     behaviors_json = json.dumps(child_behaviors) if child_behaviors is not None else None

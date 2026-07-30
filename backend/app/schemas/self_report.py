@@ -22,10 +22,9 @@ Timepoint = Literal["pre", "post"]
 FunctionClass = Literal["baseline", "PR", "NR", "AR", "not_applicable"]
 IsProblem = Literal["0", "1", "not_applicable"]
 BeforeAfter = Literal["before", "after", "na"]
-# Task-related feeling intensities collected alongside the SAM. Four independent
+# Task-related feeling intensities collected alongside the SAM. Three independent
 # 1..5 ratings (1=Not at all .. 5=Very strong); NOT one single-choice category.
-# `frustration` reuses the previously-retained (never-collected) slider column.
-EMOTION_FIELDS = ("enjoyment", "confusion", "frustration", "boredom")
+EMOTION_FIELDS = ("confusion", "frustration", "boredom")
 # What a self-report row is ABOUT. Every existing/simple report is "overall"
 # (one row per slot). The 6 post-trial/pre-feedback rehearsal slots split into
 # two rows: the participant's affect toward the CHILD's behavior, and toward
@@ -71,8 +70,7 @@ class SelfReportCreate(SelfReportContext):
     pleasure: int = _SAM_REQUIRED
     arousal: int = _SAM_REQUIRED
     dominance: int = _SAM_REQUIRED
-    # four independent task-related feeling ratings, integer 1..5; all required
-    enjoyment: int = _EMO_REQUIRED
+    # three independent task-related feeling ratings, integer 1..5; all required
     confusion: int = _EMO_REQUIRED
     frustration: int = _EMO_REQUIRED
     boredom: int = _EMO_REQUIRED
@@ -89,7 +87,6 @@ class SelfReportAutosave(SelfReportContext):
     pleasure: Optional[int] = _SAM_OPTIONAL
     arousal: Optional[int] = _SAM_OPTIONAL
     dominance: Optional[int] = _SAM_OPTIONAL
-    enjoyment: Optional[int] = _EMO_OPTIONAL
     confusion: Optional[int] = _EMO_OPTIONAL
     frustration: Optional[int] = _EMO_OPTIONAL
     boredom: Optional[int] = _EMO_OPTIONAL
@@ -99,19 +96,17 @@ class SelfReportAutosave(SelfReportContext):
     handling_pleasure: Optional[int] = _SAM_OPTIONAL
     handling_arousal: Optional[int] = _SAM_OPTIONAL
     handling_dominance: Optional[int] = _SAM_OPTIONAL
-    handling_enjoyment: Optional[int] = _EMO_OPTIONAL
     handling_confusion: Optional[int] = _EMO_OPTIONAL
     handling_frustration: Optional[int] = _EMO_OPTIONAL
     handling_boredom: Optional[int] = _EMO_OPTIONAL
 
 
 class PadEmotion(BaseModel):
-    """One complete SAM + task-feelings answer set (all seven required)."""
+    """One complete SAM + task-feelings answer set (all six required)."""
 
     pleasure: int = _SAM_REQUIRED
     arousal: int = _SAM_REQUIRED
     dominance: int = _SAM_REQUIRED
-    enjoyment: int = _EMO_REQUIRED
     confusion: int = _EMO_REQUIRED
     frustration: int = _EMO_REQUIRED
     boredom: int = _EMO_REQUIRED
@@ -145,7 +140,7 @@ class SelfReportDraftRead(BaseModel):
     # SAM dimensions (pleasure/arousal/dominance), integer [-4, +4] or None if not
     # picked yet (partial draft)
     sliders: dict[str, Optional[int]] = Field(default_factory=dict)
-    # the four feeling ratings (enjoyment/confusion/frustration/boredom), 1..5 or None
+    # the three feeling ratings (confusion/frustration/boredom), 1..5 or None
     emotions: dict[str, Optional[int]] = Field(default_factory=dict)
     # rehearsal page only: restored checklist + the second SAM+feelings set. None/
     # empty on a simple-form draft (the tablet ignores them there).
@@ -178,8 +173,7 @@ class SelfReportRead(BaseModel):
     pleasure: Optional[int] = None
     arousal: Optional[int] = None
     dominance: Optional[int] = None
-    # four independent task-related feeling ratings, integer 1..5
-    enjoyment: Optional[int] = None
+    # three independent task-related feeling ratings, integer 1..5
     confusion: Optional[int] = None
     frustration: Optional[int] = None
     boredom: Optional[int] = None

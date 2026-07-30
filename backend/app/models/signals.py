@@ -26,7 +26,7 @@ from app.models.base import Base
 # [1, 5]. Reused to generate CHECK constraints on both the record and draft
 # tables (NULL passes a range CHECK, so partial autosave drafts are allowed).
 _SAM_COLS = ("pleasure", "arousal", "dominance")
-_EMO_COLS = ("enjoyment", "confusion", "frustration", "boredom")
+_EMO_COLS = ("confusion", "frustration", "boredom")
 
 
 class RobotEvent(Base):
@@ -98,9 +98,8 @@ class ParticipantSelfReport(Base):
     pleasure: Mapped[int | None] = mapped_column(Integer, nullable=True)  # == valence
     arousal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dominance: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Four independent task-related feeling intensities, integer 1..5 (1=Not at
+    # Three independent task-related feeling intensities, integer 1..5 (1=Not at
     # all .. 5=Very strong), asked alongside the SAM.
-    enjoyment: Mapped[int | None] = mapped_column(Integer, nullable=True)
     confusion: Mapped[int | None] = mapped_column(Integer, nullable=True)
     frustration: Mapped[int | None] = mapped_column(Integer, nullable=True)
     boredom: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -188,11 +187,10 @@ class SelfReportDraft(Base):
     )
 
     # SET A (simple form, or the child-behavior block of the rehearsal page):
-    # the 3 SAM dimensions (integer [-4, +4]) + the 4 task-feeling ratings (1..5).
+    # the 3 SAM dimensions (integer [-4, +4]) + the 3 task-feeling ratings (1..5).
     pleasure: Mapped[int | None] = mapped_column(Integer, nullable=True)
     arousal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     dominance: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    enjoyment: Mapped[int | None] = mapped_column(Integer, nullable=True)
     confusion: Mapped[int | None] = mapped_column(Integer, nullable=True)
     frustration: Mapped[int | None] = mapped_column(Integer, nullable=True)
     boredom: Mapped[int | None] = mapped_column(Integer, nullable=True)
@@ -203,7 +201,6 @@ class SelfReportDraft(Base):
     handling_pleasure: Mapped[int | None] = mapped_column(Integer, nullable=True)
     handling_arousal: Mapped[int | None] = mapped_column(Integer, nullable=True)
     handling_dominance: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    handling_enjoyment: Mapped[int | None] = mapped_column(Integer, nullable=True)
     handling_confusion: Mapped[int | None] = mapped_column(Integer, nullable=True)
     handling_frustration: Mapped[int | None] = mapped_column(Integer, nullable=True)
     handling_boredom: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -214,11 +214,11 @@ Participant self-reports (PAD + ratings), continuous bipolar sliders in [-5, +5]
   9-point Self-Assessment Manikin, **integer [-4, +4]** (DB CHECK-constrained;
   raw_json carries instrument="SAM-9"). On a `child_behavior` or `self_handling`
   row these hold that referent's SAM set.
-- Task-related feelings (COLLECTED): `enjoyment`, `confusion`, `frustration`,
-  `boredom` - four INDEPENDENT intensity ratings, **integer 1..5** (1=Not at all,
-  2=Very little, 3=Moderate, 4=Strong, 5=Very strong; DB CHECK-constrained). NOT a
+- Task-related feelings (COLLECTED): `confusion`, `frustration`, `boredom` -
+  three INDEPENDENT intensity ratings, **integer 1..5** (1=Not at all, 2=Very
+  little, 3=Moderate, 4=Strong, 5=Very strong; DB CHECK-constrained). NOT a
   single dominant emotion; each is answered on its own.
-- These seven are the only self-report answer fields. (Earlier schema versions
+- These six are the only self-report answer fields. (Earlier schema versions
   carried unused `confidence`/`engagement`/`perceived_challenge`/`perceived_support`/
   `cognitive_load` slider columns; they have been removed.)
 - `trial_id`, `raw_json`, `timestamp_utc`, `session_time_ms`, `created_at`.
@@ -322,8 +322,8 @@ One row per self-report, ready for the 2x3 analysis.
   `participant_id`, `trial_id`, `loop_index`, `sequence_position`, `phase`,
   `timepoint`, `function_class`, `is_problem`, `before_after_robot_action`,
   `source`, `referent`, `child_behaviors`, the SAM sliders (`pleasure`/`arousal`/
-  `dominance`) + the four feeling ratings (`enjoyment`/`confusion`/`frustration`/
-  `boredom`), `timestamp_utc`, `session_time_ms`. NOTE: a rehearsal slot contributes **two**
+  `dominance`) + the three feeling ratings (`confusion`/`frustration`/`boredom`),
+  `timestamp_utc`, `session_time_ms`. NOTE: a rehearsal slot contributes **two**
   rows here (referent `child_behavior` + `self_handling`); filter/pivot on
   `referent` when comparing PAD across referents.
 - **Derived-via-join** (from `dtt_loops`): `loop__function_class` (canonical),

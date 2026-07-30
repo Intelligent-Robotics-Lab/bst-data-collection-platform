@@ -577,15 +577,14 @@
         extra = {
           child_behaviors: srChecklist ? srChecklist.values() : [],
           pleasure: c.pleasure, arousal: c.arousal, dominance: c.dominance,
-          enjoyment: c.enjoyment, confusion: c.confusion, frustration: c.frustration, boredom: c.boredom,
+          confusion: c.confusion, frustration: c.frustration, boredom: c.boredom,
           handling_pleasure: h.pleasure, handling_arousal: h.arousal, handling_dominance: h.dominance,
-          handling_enjoyment: h.enjoyment, handling_confusion: h.confusion,
-          handling_frustration: h.frustration, handling_boredom: h.boredom,
+          handling_confusion: h.confusion, handling_frustration: h.frustration, handling_boredom: h.boredom,
         };
       } else {
         const b = srBlocks.single.bucket;
         extra = { pleasure: b.pleasure, arousal: b.arousal, dominance: b.dominance,
-                  enjoyment: b.enjoyment, confusion: b.confusion, frustration: b.frustration, boredom: b.boredom };
+                  confusion: b.confusion, frustration: b.frustration, boredom: b.boredom };
       }
       const body = Object.assign({}, ctx, extra);
       try {
@@ -611,11 +610,10 @@
     ];
     const SAM_VALUES = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
     const SAM_FIG = new Set([-4, -2, 0, 2, 4]);  // have a manikin image; the rest are gaps
-    // Task-related feelings: four INDEPENDENT intensity ratings (each its own
+    // Task-related feelings: three INDEPENDENT intensity ratings (each its own
     // radio group), captured as integers 1..5. Not one single-choice category.
     const TASK_FEELINGS = [
-      ["enjoyment", "Enjoyment"], ["confusion", "Confusion"],
-      ["frustration", "Frustration"], ["boredom", "Boredom"],
+      ["confusion", "Confusion"], ["frustration", "Frustration"], ["boredom", "Boredom"],
     ];
     const INTENSITY = [
       [1, "Not at all"], [2, "Very little"], [3, "Moderate"], [4, "Strong"], [5, "Very strong"],
@@ -642,7 +640,7 @@
     function buildSamEmotionBlock(parent, feelingsQuestion, onChange) {
       const bucket = {
         pleasure: undefined, arousal: undefined, dominance: undefined,
-        enjoyment: undefined, confusion: undefined, frustration: undefined, boredom: undefined,
+        confusion: undefined, frustration: undefined, boredom: undefined,
       };
       const cells = {}, checks = {};
       const emoCells = {};  // feeling -> { value(1..5) -> button }
@@ -883,7 +881,7 @@
       let url, body;
       const affect = (x) => ({
         pleasure: x.pleasure, arousal: x.arousal, dominance: x.dominance,
-        enjoyment: x.enjoyment, confusion: x.confusion, frustration: x.frustration, boredom: x.boredom,
+        confusion: x.confusion, frustration: x.frustration, boredom: x.boredom,
       });
       if (srMode === "rehearsal") {
         const c = srBlocks.child.bucket, h = srBlocks.handling.bucket;

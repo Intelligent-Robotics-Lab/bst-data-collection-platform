@@ -267,7 +267,6 @@ _ANALYSIS_SR_RAW = [
     "pleasure",
     "arousal",
     "dominance",
-    "enjoyment",
     "confusion",
     "frustration",
     "boredom",
