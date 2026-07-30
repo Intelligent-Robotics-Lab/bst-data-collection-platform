@@ -20,6 +20,11 @@
     }
     .qtext { font-size: 1.1rem; margin: 0 0 0.7rem; }
     .req { color: #c00; }
+    .qhint { color: #667; font-size: 0.9rem; margin: -0.3rem 0 0.7rem; }
+    #form-intro { margin: 0 0 1rem; }
+    .intro-explain { font-size: 1.02rem; color: #234; background: #eef4fb; border: 1px solid #d6e4f2;
+      border-radius: 10px; padding: 0.7rem 0.9rem; margin: 0 0 0.6rem; }
+    .intro-instruction { font-size: 1rem; color: #333; margin: 0 0 0.4rem; }
     /* Likert / choice options */
     .opts { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     .opt {
@@ -39,6 +44,45 @@
     .slider-val { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--accent-dark); }
     input[type=range] { width: 100%; height: 2.2rem; }
     .poles { display: flex; justify-content: space-between; color: #789; font-size: 0.8rem; }
+    /* Self-Assessment Manikin (9-point SAM): 9 equal square buttons. 5 hold a
+       manikin, 4 hold a "between two figures" marker (NOT a manikin). Every
+       button shares the same size, border, selected highlight, and min height,
+       so all nine positions have identical weight and touch area. */
+    /* No dimension title: the scale anchor labels distinguish the rows. The
+       answered check sits at the right end of the anchor line (space reserved so
+       it never shifts the layout when it appears). */
+    .sam-anchors { display: flex; align-items: baseline; gap: 0.5rem; color: #789; font-size: 0.85rem; margin: 0 0 0.45rem; }
+    .sam-anchors .sam-lo { margin-right: auto; max-width: 45%; }
+    .sam-anchors .sam-hi { text-align: right; max-width: 45%; }
+    .sam-check { min-width: 1.1rem; text-align: right; color: var(--accent-dark); font-weight: 700; font-size: 1rem; }
+    .sam-row { display: flex; align-items: stretch; gap: 4px; touch-action: manipulation; }
+    .sam-cell { flex: 1 1 0; min-width: 0; aspect-ratio: 1 / 1; min-height: 66px;
+      border: 2px solid #cdd5db; border-radius: 10px; background: #fff; padding: 4px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .sam-cell:active { transform: scale(0.97); }
+    .sam-cell.selected { border-color: var(--accent); background: #e8f7ef; }
+    .sam-cell img { max-width: 100%; max-height: 100%; height: auto; display: block;
+      pointer-events: none; mix-blend-mode: multiply; }
+    /* intermediate "between" marker: a plain vertical divider, deliberately not a face/body */
+    .sam-between { width: 0; height: 52%; border-left: 3px dashed #aab3bb; }
+    .sam-cell.selected .sam-between { border-left-color: var(--accent); border-left-style: solid; }
+    /* Task-related feelings: a distinct card after the SAM rows (extra top gap +
+       accent top edge) with four independent 1..5 intensity rows. */
+    .emo-intensity { margin-top: 1.5rem; border-top: 3px solid var(--accent); }
+    .emo-intensity .qtext { margin-bottom: 0.9rem; }
+    .emo-row { margin-bottom: 0.9rem; }
+    .emo-row:last-child { margin-bottom: 0.1rem; }
+    .emo-label { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.35rem; }
+    /* five equal, tablet-friendly targets per row; shrink-to-fit, never scroll */
+    .emo-levels { display: flex; gap: 6px; touch-action: manipulation; }
+    .emo-level { flex: 1 1 0; min-width: 0; text-align: center; border: 2px solid #cdd5db;
+      border-radius: 10px; background: #fff; padding: 0.55rem 0.25rem; min-height: 60px;
+      font-size: 0.9rem; line-height: 1.15; cursor: pointer; user-select: none;
+      display: flex; align-items: center; justify-content: center; }
+    .emo-level:active { transform: scale(0.97); }
+    .emo-level.selected { border-color: var(--accent); background: #e8f7ef; font-weight: 600; }
+    /* section heading for the expanded rehearsal form (checklist + two PAD blocks) */
+    .sr-section { font-size: 1.12rem; font-weight: 700; color: #223; margin: 1.7rem 0 0.6rem; }
     button.submit {
       width: 100%; font-size: 1.2rem; padding: 0.9rem; margin-top: 0.4rem;
       background: var(--accent); color: #fff; border: none; border-radius: 12px; cursor: pointer;
@@ -46,6 +90,58 @@
     button.submit:active { background: var(--accent-dark); }
     button.submit:disabled { background: #9bb; cursor: default; }
     #status { text-align: center; padding: 3rem 1rem; color: #667; font-size: 1.15rem; }
+    /* Participant progress screen (shown between forms) */
+    #progress-root { padding: 1.5rem 0.5rem; text-align: center; }
+    .pg-phase { font-size: 2.1rem; font-weight: 700; color: var(--accent-dark); margin: 0.4rem 0 0.2rem; }
+    .pg-sub { color: #556; font-size: 1.05rem; margin: 0 0 1.4rem; }
+    .pg-steps { display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap; margin: 0 0 1.6rem; }
+    .pg-step { flex: 1 1 0; max-width: 9rem; min-width: 5rem; padding: 0.55rem 0.3rem; border-radius: 10px;
+      border: 2px solid #dce2e8; background: #fff; color: #8a97a3; font-size: 0.95rem; font-weight: 600; }
+    .pg-step.done { border-color: var(--accent); background: #e8f7ef; color: var(--accent-dark); }
+    .pg-step.current { border-color: var(--accent-dark); background: #fff; color: var(--accent-dark);
+      box-shadow: 0 0 0 3px rgba(17,136,120,0.15); }
+    .pg-rounds-label { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.6rem; color: #234; }
+    /* Rehearsal SD-delivery guide: a numbered 1..6 list, each with its skill +
+       SD prompt, and a strong arrow on the SD to deliver now (advances 1->6). */
+    .pg-sd-list { max-width: 34rem; margin: 0.3rem auto 1.2rem; text-align: left; }
+    .pg-sd { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.7rem;
+      border: 2px solid #e2e6ea; border-radius: 12px; background: #fff; margin-bottom: 0.5rem; color: #93a0ab; }
+    .pg-sd .arrow { flex: 0 0 1.4rem; font-size: 1.5rem; line-height: 1; color: transparent; text-align: center; }
+    .pg-sd .num { flex: 0 0 auto; width: 2rem; height: 2rem; border-radius: 50%; border: 2px solid #cdd5db;
+      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.05rem; }
+    .pg-sd .body { flex: 1 1 auto; min-width: 0; }
+    .pg-sd .name { font-size: 1.12rem; font-weight: 700; }
+    .pg-sd .prompt { font-size: 0.98rem; color: #8a97a3; margin-top: 0.1rem; }
+    .pg-sd .deliver { flex: 0 0 auto; background: var(--accent-dark); color: #fff; font-size: 0.78rem;
+      font-weight: 700; letter-spacing: 0.02em; padding: 0.28rem 0.6rem; border-radius: 999px; white-space: nowrap; }
+    .pg-sd.done { color: #223; border-color: #cfe9db; }
+    .pg-sd.done .num { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .pg-sd.done .prompt { color: #9aa6b1; }
+    .pg-sd.current { border-color: var(--accent-dark); background: #eefaf4; color: #223;
+      box-shadow: 0 0 0 3px rgba(17,136,120,0.18); }
+    .pg-sd.current .arrow { color: var(--accent-dark); }
+    .pg-sd.current .num { border-color: var(--accent-dark); color: var(--accent-dark); }
+    .pg-sd.current .name { color: var(--accent-dark); }
+    .pg-sd.current .prompt { color: #3a6f5f; }
+    .pg-dots { display: flex; justify-content: center; gap: 0.7rem; flex-wrap: wrap; margin: 0 0 1.6rem; }
+    .pg-dot { width: 2.1rem; height: 2.1rem; border-radius: 50%; border: 3px solid #cdd5db; background: #fff; }
+    .pg-dot.done { background: var(--accent); border-color: var(--accent); }
+    .pg-dot.current { border-color: var(--accent-dark); box-shadow: 0 0 0 4px rgba(17,136,120,0.15); }
+    .pg-message { font-size: 1.35rem; color: var(--accent-dark); font-weight: 600; margin: 1.2rem 0 0; }
+    .pg-done-emoji { font-size: 3rem; margin: 0.5rem 0; }
+    .pg-now { display: flex; gap: 0.7rem; justify-content: center; flex-wrap: wrap; margin: 0.2rem 0 1.4rem; }
+    .pg-now .card2 { flex: 1 1 12rem; max-width: 18rem; border: 1px solid #dce2e8; border-radius: 12px;
+      background: #fff; padding: 0.7rem 0.9rem; }
+    .pg-now .lab { color: #8a97a3; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    .pg-now .val { font-size: 1.3rem; font-weight: 700; color: #223; margin-top: 0.15rem; }
+    /* Sub-topic list within Instruction / Modeling */
+    .pg-list { max-width: 30rem; margin: 0.4rem auto 0; text-align: left; }
+    .pg-list-item { display: flex; align-items: center; gap: 0.8rem; padding: 0.55rem 0.3rem; color: #8a97a3; font-size: 1.1rem; }
+    .pg-list-item .bullet { width: 1.5rem; height: 1.5rem; border-radius: 50%; border: 3px solid #cdd5db; background: #fff; flex: 0 0 auto; }
+    .pg-list-item.done { color: var(--accent-dark); }
+    .pg-list-item.done .bullet { background: var(--accent); border-color: var(--accent); }
+    .pg-list-item.current { color: #223; font-weight: 700; }
+    .pg-list-item.current .bullet { border-color: var(--accent-dark); box-shadow: 0 0 0 4px rgba(17,136,120,0.15); }
     #msg { text-align: center; min-height: 1.4rem; font-size: 1rem; margin-top: 0.6rem; }
     .err { color: #c00; }
     .ok { color: var(--accent-dark); }
@@ -55,8 +151,10 @@
 <body>
   <div class="wrap">
     <div id="status">Connecting…</div>
+    <div id="progress-root" hidden></div>
     <div id="form-root" hidden>
       <h1 id="form-title"></h1>
+      <div id="form-intro"></div>
       <p class="sub" id="form-sub"></p>
       <div class="saving" id="saving"></div>
       <div id="items"></div>
@@ -77,6 +175,14 @@
     let submitted = false;    // lock after a successful submit of this revision
     let saveTimer = null;
 
+    // Self-report form state. srMode: "simple" (baseline + post-feedback, one
+    // PAD+emotion block) | "rehearsal" (post-trial/pre-feedback: a behavior
+    // checklist + two PAD+emotion blocks). srBlocks holds the block controllers;
+    // srChecklist is the multi-select controller (rehearsal only).
+    let srMode = "simple";
+    let srBlocks = {};
+    let srChecklist = null;
+
     const $ = (id) => document.getElementById(id);
 
     async function poll() {
@@ -89,11 +195,18 @@
       } catch (e) {
         // Backend momentarily unreachable: keep the current screen, keep polling.
       } finally {
+        // While no form is up, keep the progress screen live (its data changes as
+        // the robot advances, even though the assignment revision does not).
+        if (showingProgress) refreshProgress();
         setTimeout(poll, POLL_MS);
       }
     }
 
     async function render(a) {
+      // A new assignment supersedes any pending "return to progress" from a
+      // previous form's submit -- otherwise that stale timer would clear THIS
+      // form (e.g. the next stage's self-report) a couple seconds after it opens.
+      if (pendingReturnTimer) { clearTimeout(pendingReturnTimer); pendingReturnTimer = null; }
       current = a; config = null; answers = {}; submitted = false;
       $("msg").textContent = ""; $("msg").className = ""; $("saving").textContent = "";
       if (a.form_type === "questionnaire") return renderQuestionnaire(a);
@@ -101,16 +214,200 @@
       return renderIdle(a);
     }
 
+    // ---- Progress screen (between forms) ----
+    let showingProgress = false;
+    let pendingReturnTimer = null;   // scheduled return-to-progress after a submit
+    let submittedRevision = null;    // the assignment revision that submit ran against
+
     function renderIdle(a) {
       $("form-root").hidden = true;
-      $("status").hidden = false;
-      $("status").textContent = a.message || "Please wait for the next form.";
+      $("status").hidden = true;
+      $("progress-root").hidden = false;
+      showingProgress = true;
+      refreshProgress();
     }
+
+    // After a form is finished, clear the pushed assignment and show progress.
+    // Clearing bumps the assignment revision, so a page reload also lands on the
+    // progress screen (not the already-submitted form).
+    async function returnToProgress() {
+      pendingReturnTimer = null;
+      try {
+        // Only clear if the tablet is STILL showing the form we submitted. If the
+        // robot already pushed the next form (revision changed), leave it up.
+        const a = await (await fetch(`${API}/tablet/assignment`)).json();
+        if (a.revision !== submittedRevision) return;
+        const cleared = await (await fetch(`${API}/tablet/clear`, { method: "POST" })).json();
+        shownRevision = cleared.revision; current = cleared;
+        renderIdle(current);
+      } catch (e) { /* transient: leave the screen; poll will recover */ }
+    }
+
+    // Sub-topics within Instruction / Modeling, mirrored from the bst monitor page.
+    // Driven by the monitor's `screen` + `current_phase` (0-based).
+    const INSTRUCTION_STEPS = [
+      "Tutorial", "Introduction", "Skills Training Overview",
+      "Prompting & Error Correction", "Reinforcement & Motivation", "Full Process Walkthrough",
+    ];
+    const MODELING_STEPS = [
+      "Intro", "Manding and Motivation", "Imitative", "Receptive",
+      "Tacting and Labeling", "Emotion Labeling", "Error Correction & Prompting",
+    ];
+
+    // Friendly labels for the robot's within-trial state (mirrors the bst monitor).
+    const TRIAL_STATE_LABELS = {
+      "SD": "Instruction (SD)", "sd": "Instruction (SD)",
+      "KID_BEHAVIOR_1": "Child responding", "kid behavior 1": "Child responding",
+      "REINFORCEMENT": "Reinforcement", "reinforcement": "Reinforcement",
+      "PROMPTING": "Prompting", "prompting": "Prompting",
+      "KID_BEHAVIOR_2": "Child responding", "kid behavior 2": "Child responding",
+      "HP_SD": "High-probability SD", "hp_sd": "High-probability SD",
+      "KID_BEHAVIOR_HP": "Child responding", "kid behavior HP": "Child responding",
+      "RETRY_SD": "Retry SD", "retry sd": "Retry SD",
+      "KID_BEHAVIOR_RETRY": "Child responding", "kid behavior retry": "Child responding",
+      "FEEDBACK": "Feedback", "feedback": "Feedback",
+    };
+
+    async function refreshProgress() {
+      try {
+        // Progress (from gates) + the live monitor (Current SD + Trial State, from
+        // the robot). Both are cheap and same-origin.
+        const [p, m] = await Promise.all([
+          (await fetch(`${API}/progress`)).json(),
+          (await fetch(`${API}/monitor`)).json().catch(() => ({ monitor: null })),
+        ]);
+        renderProgress(p, m && m.monitor);
+      } catch (e) { /* keep the last progress view on a blip */ }
+    }
+
+    function renderProgress(p, monitor) {
+      const root = $("progress-root");
+      if (p.phase === "complete") {
+        root.innerHTML =
+          '<div class="pg-phase">Thank you</div>' +
+          '<p class="pg-sub">' + esc(p.message || "") + '</p>';
+        return;
+      }
+      // Before the robot session begins: participant is completing questionnaires.
+      if (!p.active) {
+        root.innerHTML =
+          '<div class="pg-phase">Welcome</div>' +
+          '<p class="pg-sub">' + esc(p.message || "") + '</p>';
+        return;
+      }
+      // Active interaction phase: neutral progress only. No affective message,
+      // so the tablet never colours the participant's emotional response.
+      //
+      // The robot's live monitor (screen) is authoritative for what is showing
+      // NOW; the gate-derived phase lags, so prefer the monitor when present.
+      const monScreen = monitor && monitor.screen;
+      const phaseKey = ["instruction", "modeling", "rehearsal"].includes(monScreen)
+        ? monScreen : p.phase;
+      const phaseIndex = (p.phases || []).findIndex(x => x.key === phaseKey);
+      const phaseLabel = ((p.phases || []).find(x => x.key === phaseKey) || {}).label || p.phase_label || "";
+
+      const steps = (p.phases || []).map((ph, idx) => {
+        let cls = "pg-step";
+        if (ph.key === phaseKey) cls += " current";
+        else if (idx < phaseIndex) cls += " done";
+        return '<div class="' + cls + '">' + esc(ph.label) + '</div>';
+      }).join("");
+
+      // Sub-topic list within Instruction / Modeling (what state is presenting now).
+      let sub = "";
+      const stepList = monScreen === "instruction" ? INSTRUCTION_STEPS
+        : monScreen === "modeling" ? MODELING_STEPS : null;
+      if (stepList) {
+        const cp = Number.isInteger(monitor.current_phase) ? monitor.current_phase : 0;
+        sub = '<div class="pg-list">' + stepList.map((label, i) => {
+          let c = "pg-list-item";
+          if (i < cp) c += " done";
+          else if (i === cp) c += " current";
+          return '<div class="' + c + '"><div class="bullet"></div><div>' + esc(label) + '</div></div>';
+        }).join("") + '</div>';
+      }
+
+      let rounds = "", now = "";
+      if (phaseKey === "rehearsal") {
+        const total = p.rounds_total || 6;
+        // Which SDs are actually done (the completed SET, not a count) -- SDs can
+        // be completed out of order, so done-marking must test membership.
+        const done = Array.isArray(p.completed_sds) ? p.completed_sds : [];
+        const isDone = (n) => done.includes(n);
+        // The SD to deliver NOW = the earliest SD not yet done. Gate-derived and
+        // never from the (possibly jumpy) live monitor. Trust the backend's value
+        // when present (integer, or null when all six are done); only compute the
+        // earliest gap client-side if the field is absent.
+        let next;
+        if ("next_sd" in p) {
+          next = p.next_sd;
+        } else {
+          next = null;
+          for (let i = 1; i <= total; i++) { if (!isDone(i)) { next = i; break; } }
+        }
+        const sds = Array.isArray(p.rehearsal_sds) ? p.rehearsal_sds : [];
+
+        if (sds.length) {
+          const items = sds.map(sd => {
+            const n = sd.number;
+            let c = "pg-sd";
+            if (isDone(n)) c += " done";
+            else if (n === next) c += " current";
+            const isCurrent = (n === next);
+            const numMark = isDone(n) ? "✓" : String(n);
+            const name = sd.name || ("SD " + n);
+            const prompt = sd.prompt
+              ? '<div class="prompt">“' + esc(sd.prompt) + '”</div>' : '';
+            return '<div class="' + c + '">' +
+              '<div class="arrow">' + (isCurrent ? '▶' : '') + '</div>' +
+              '<div class="num">' + numMark + '</div>' +
+              '<div class="body"><div class="name">' + esc(name) + '</div>' + prompt + '</div>' +
+              (isCurrent ? '<div class="deliver">Deliver now</div>' : '') +
+              '</div>';
+          }).join("");
+          rounds =
+            '<div class="pg-rounds-label">' +
+            (next ? ('Deliver SD ' + next + ' of ' + total) : ('All ' + total + ' SDs delivered')) +
+            '</div><div class="pg-sd-list">' + items + '</div>';
+        } else {
+          // Fallback (SD plan unavailable, e.g. monitor says rehearsal before the
+          // gates catch up): the plain numbered dot row.
+          let dots = "";
+          for (let i = 1; i <= total; i++) {
+            let c = "pg-dot";
+            if (isDone(i)) c += " done";
+            else if (i === next) c += " current";
+            dots += '<div class="' + c + '"></div>';
+          }
+          rounds = '<div class="pg-rounds-label">SD ' + next + ' of ' + total + '</div>' +
+                   '<div class="pg-dots">' + dots + '</div>';
+        }
+
+        // Live within-trial status from the robot's monitor (when present).
+        const stRaw = monitor && monitor.trial_state;
+        const st = stRaw ? (TRIAL_STATE_LABELS[stRaw] || TRIAL_STATE_LABELS[String(stRaw).toLowerCase()] || stRaw) : null;
+        if (st) {
+          now = '<div class="pg-now">' +
+            '<div class="card2"><div class="lab">Trial State</div><div class="val">' + esc(st) + '</div></div>' +
+            '</div>';
+        }
+      }
+
+      root.innerHTML =
+        '<div class="pg-phase">' + esc(phaseLabel) + '</div>' +
+        '<div class="pg-steps">' + steps + '</div>' +
+        sub + rounds + now;
+    }
+
+    function esc(s) { return (s == null ? "" : String(s)).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
     function showForm(title, sub) {
       $("status").hidden = true;
+      $("progress-root").hidden = true;
+      showingProgress = false;
       $("form-root").hidden = false;
       $("form-title").textContent = title || "";
+      $("form-intro").innerHTML = "";  // cleared per form; questionnaires repopulate it
       $("form-sub").textContent = sub || "";
       $("items").innerHTML = "";
       $("submit-btn").disabled = false;
@@ -122,6 +419,17 @@
       const v = a.questionnaire_version ? `?version=${encodeURIComponent(a.questionnaire_version)}` : "";
       config = await (await fetch(`${API}/questionnaires/${a.questionnaire_key}/config${v}`)).json();
       showForm(config.title || a.questionnaire_key, "Please answer every required question.");
+
+      // Brief explanation of this questionnaire, then its official instruction.
+      const intro = $("form-intro"); intro.innerHTML = "";
+      if (config.intro) {
+        const p = document.createElement("p"); p.className = "intro-explain";
+        p.textContent = config.intro; intro.appendChild(p);
+      }
+      if (config.instruction) {
+        const p = document.createElement("p"); p.className = "intro-instruction";
+        p.textContent = config.instruction; intro.appendChild(p);
+      }
 
       // Restore any saved answers for this session+questionnaire.
       try {
@@ -149,6 +457,10 @@
       q.className = "qtext";
       q.innerHTML = (it.text || it.item_id) + (it.required ? ' <span class="req">*</span>' : "");
       card.appendChild(q);
+      if (it.hint) {
+        const h = document.createElement("p"); h.className = "qhint";
+        h.textContent = it.hint; card.appendChild(h);
+      }
 
       const setVal = (val, render) => { answers[it.item_id] = val; render(); scheduleSave(); };
 
@@ -255,8 +567,26 @@
     }
 
     async function autosaveSelfReport() {
-      // Send context + all nine sliders (0 is a real neutral value, never dropped).
-      const body = Object.assign({}, current.self_report_context || {}, answers);
+      // Send context + whichever picks have been made so far (a partial subset is
+      // fine; the autosave endpoint accepts any subset). 0 is a real choice and
+      // is kept; unset dimensions are `undefined` and JSON.stringify drops them.
+      const ctx = current.self_report_context || {};
+      let extra;
+      if (srMode === "rehearsal") {
+        const c = srBlocks.child.bucket, h = srBlocks.handling.bucket;
+        extra = {
+          child_behaviors: srChecklist ? srChecklist.values() : [],
+          pleasure: c.pleasure, arousal: c.arousal, dominance: c.dominance,
+          confusion: c.confusion, frustration: c.frustration, boredom: c.boredom,
+          handling_pleasure: h.pleasure, handling_arousal: h.arousal, handling_dominance: h.dominance,
+          handling_confusion: h.confusion, handling_frustration: h.frustration, handling_boredom: h.boredom,
+        };
+      } else {
+        const b = srBlocks.single.bucket;
+        extra = { pleasure: b.pleasure, arousal: b.arousal, dominance: b.dominance,
+                  confusion: b.confusion, frustration: b.frustration, boredom: b.boredom };
+      }
+      const body = Object.assign({}, ctx, extra);
       try {
         const res = await fetch(
           `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports/autosave`,
@@ -266,54 +596,232 @@
       } catch (e) { $("saving").textContent = ""; }
     }
 
-    // ---- Self-report ----
-    const SLIDERS = [
-      ["pleasure", "Unpleasant", "Pleasant"],
-      ["arousal", "Calm", "Excited"],
-      ["dominance", "Controlled", "In control"],
-      ["confidence", "Not confident", "Very confident"],
-      ["frustration", "Not frustrated", "Very frustrated"],
-      ["engagement", "Disengaged", "Engaged"],
-      ["perceived_challenge", "Too easy", "Too hard"],
-      ["perceived_support", "Unsupported", "Supported"],
-      ["cognitive_load", "Low effort", "High effort"],
+    // ---- Self-report: 9-point Self-Assessment Manikin (SAM) per dimension ----
+    // Integer [-4, +4]: 5 figures at -4,-2,0,+2,+4 and 4 tappable gaps between
+    // them (tap a picture OR the space between two). No default -- the
+    // participant must actively pick, so submit stays disabled until all three
+    // rows are answered. Figures are served (gitignored) from
+    // /ui/sam/<dim>_<value>.png; the page lives at /ui/tablet.html, so the
+    // relative "sam/..." path resolves there.
+    const SAM = [
+      ["pleasure", "Very unpleasant/unhappy", "Very pleasant/happy"],
+      ["arousal", "Very calm/sleepy", "Very stimulated/aroused"],
+      ["dominance", "Completely controlled by the situation", "Completely in control of the situation"],
+    ];
+    const SAM_VALUES = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
+    const SAM_FIG = new Set([-4, -2, 0, 2, 4]);  // have a manikin image; the rest are gaps
+    // Task-related feelings: three INDEPENDENT intensity ratings (each its own
+    // radio group), captured as integers 1..5. Not one single-choice category.
+    const TASK_FEELINGS = [
+      ["confusion", "Confusion"], ["frustration", "Frustration"], ["boredom", "Boredom"],
+    ];
+    const INTENSITY = [
+      [1, "Not at all"], [2, "Very little"], [3, "Moderate"], [4, "Strong"], [5, "Very strong"],
+    ];
+    // The task-feelings prompt is phrased per context (referent).
+    const TASK_FEELINGS_Q =
+      "During the part of the interaction that just occurred, how strongly did you experience each of the following?";
+    const TASK_FEELINGS_Q_CHILD =
+      "During the child robot's behavior that just occurred, how strongly did you experience each of the following?";
+    const TASK_FEELINGS_Q_HANDLING =
+      "While you were handling the child robot's behavior, how strongly did you experience each of the following?";
+
+    // The child-behavior question shown only on the rehearsal (post-trial,
+    // pre-feedback) slot. Single-select: exactly one option.
+    const BEHAVIORS = [
+      ["screaming", "Screaming and avoiding"], ["demanding", "Demanding"],
+      ["repetition", "Repetition"], ["none", "None"],
     ];
 
-    async function renderSelfReport(a) {
-      showForm("How are you feeling right now?", "Slide each bar. Center means neutral.");
-      answers = {};
-      const rngs = {}, vals = {};
-      const items = $("items");
-      for (const [key, lo, hi] of SLIDERS) {
-        answers[key] = 0;
-        const card = document.createElement("div");
-        card.className = "card slider-row";
-        const lab = document.createElement("div");
-        lab.className = "slider-label";
-        const name = document.createElement("span"); name.textContent = prettyName(key);
-        const val = document.createElement("span"); val.className = "slider-val"; val.textContent = "0";
-        lab.appendChild(name); lab.appendChild(val);
-        const rng = document.createElement("input");
-        rng.type = "range"; rng.min = -5; rng.max = 5; rng.step = 0.1; rng.value = 0;
-        rng.oninput = () => {
-          answers[key] = Number(rng.value);
-          val.textContent = Number(rng.value).toFixed(1);
-          scheduleSave();
-        };
-        rngs[key] = rng; vals[key] = val;
-        const poles = document.createElement("div");
-        poles.className = "poles";
-        const ls = document.createElement("span"); ls.textContent = lo;
-        const hs = document.createElement("span"); hs.textContent = hi;
-        poles.appendChild(ls); poles.appendChild(hs);
-        card.appendChild(lab); card.appendChild(rng); card.appendChild(poles);
-        items.appendChild(card);
+    // Build one answer block: the 3 SAM rows + the task-related feelings section
+    // (four independent 1..5 intensity rows) into `parent`. Picks live in the
+    // returned controller's own bucket, so several blocks coexist on one page
+    // without sharing state.
+    function buildSamEmotionBlock(parent, feelingsQuestion, onChange) {
+      const bucket = {
+        pleasure: undefined, arousal: undefined, dominance: undefined,
+        confusion: undefined, frustration: undefined, boredom: undefined,
+      };
+      const cells = {}, checks = {};
+      const emoCells = {};  // feeling -> { value(1..5) -> button }
+
+      for (const [key, lo, hi] of SAM) {
+        const card = document.createElement("div"); card.className = "card sam-card";
+        // No visible dimension title; the anchor labels below identify the scale.
+        const anchors = document.createElement("div"); anchors.className = "sam-anchors";
+        const ls = document.createElement("span"); ls.className = "sam-lo"; ls.textContent = lo;
+        const hs = document.createElement("span"); hs.className = "sam-hi"; hs.textContent = hi;
+        const chk = document.createElement("span"); chk.className = "sam-check"; chk.textContent = "";
+        anchors.appendChild(ls); anchors.appendChild(hs); anchors.appendChild(chk);
+        checks[key] = chk;
+        const row = document.createElement("div"); row.className = "sam-row";
+        row.setAttribute("role", "radiogroup"); row.setAttribute("aria-label", prettyName(key));
+        cells[key] = {};
+        for (const v of SAM_VALUES) {
+          const cell = document.createElement("button");
+          cell.type = "button";
+          cell.className = "sam-cell " + (SAM_FIG.has(v) ? "sam-fig" : "sam-gap");
+          cell.setAttribute("role", "radio");
+          cell.setAttribute("aria-checked", "false");
+          cell.setAttribute("aria-label", prettyName(key) + " " + v);
+          if (SAM_FIG.has(v)) {
+            const img = document.createElement("img");
+            img.src = `sam/${key}_${v}.png`; img.alt = "";
+            cell.appendChild(img);
+          } else {
+            const mark = document.createElement("span"); mark.className = "sam-between";
+            mark.setAttribute("aria-hidden", "true");
+            cell.appendChild(mark);
+          }
+          cell.onclick = () => pickSam(key, v);
+          cells[key][v] = cell;
+          row.appendChild(cell);
+        }
+        card.appendChild(anchors); card.appendChild(row);
+        parent.appendChild(card);
       }
+
+      // Task-related feelings: a distinct card (extra top gap) with the question,
+      // then four independent rows, each a radio group of five intensity levels.
+      const card = document.createElement("div"); card.className = "card emo-intensity";
+      const q = document.createElement("div"); q.className = "qtext"; q.textContent = feelingsQuestion;
+      card.appendChild(q);
+      for (const [emo, label] of TASK_FEELINGS) {
+        const erow = document.createElement("div"); erow.className = "emo-row";
+        const lab = document.createElement("div"); lab.className = "emo-label"; lab.textContent = label;
+        erow.appendChild(lab);
+        const levels = document.createElement("div"); levels.className = "emo-levels";
+        levels.setAttribute("role", "radiogroup"); levels.setAttribute("aria-label", label);
+        emoCells[emo] = {};
+        for (const [val, llabel] of INTENSITY) {
+          const b = document.createElement("button");
+          b.type = "button"; b.className = "emo-level"; b.textContent = llabel;
+          b.setAttribute("role", "radio"); b.setAttribute("aria-checked", "false");
+          b.setAttribute("aria-label", label + ": " + llabel);
+          b.onclick = () => pickEmo(emo, val);
+          emoCells[emo][val] = b;
+          levels.appendChild(b);
+        }
+        erow.appendChild(levels);
+        card.appendChild(erow);
+      }
+      parent.appendChild(card);
+
+      function pickSam(key, v) {
+        bucket[key] = v;
+        for (const [vv, el] of Object.entries(cells[key])) {
+          const on = Number(vv) === v;
+          el.classList.toggle("selected", on);
+          el.setAttribute("aria-checked", on ? "true" : "false");
+        }
+        checks[key].textContent = "✓";
+        onChange();
+      }
+      // Single-select WITHIN one feeling row; independent across rows.
+      function pickEmo(emo, val) {
+        bucket[emo] = val;
+        for (const [v, el] of Object.entries(emoCells[emo])) {
+          const on = Number(v) === val;
+          el.classList.toggle("selected", on);
+          el.setAttribute("aria-checked", on ? "true" : "false");
+        }
+        onChange();
+      }
+      return {
+        bucket,
+        complete() {
+          return SAM.every(([k]) => Number.isInteger(bucket[k])) &&
+                 TASK_FEELINGS.every(([e]) => Number.isInteger(bucket[e]));
+        },
+        restore(sliders, emotions) {
+          for (const [k, v] of Object.entries(sliders || {})) {
+            if (v === null || v === undefined) continue;
+            const iv = Math.round(Number(v));
+            if (cells[k] && cells[k][iv]) pickSam(k, iv);
+          }
+          for (const [e, v] of Object.entries(emotions || {})) {
+            if (v === null || v === undefined) continue;
+            const iv = Math.round(Number(v));
+            if (emoCells[e] && emoCells[e][iv]) pickEmo(e, iv);
+          }
+        },
+      };
+    }
+
+    // Build the single-select behavior question into `parent` (exactly one option).
+    // Keeps the values()/complete()/restore() interface (values -> a 0/1-element
+    // list) so the submit + autosave + draft-restore paths are unchanged.
+    function buildChecklist(parent, question, hint, onChange) {
+      let selected = null;
+      const cellsByVal = {};
+      const card = document.createElement("div"); card.className = "card";
+      const q = document.createElement("div"); q.className = "qtext"; q.textContent = question;
+      card.appendChild(q);
+      if (hint) { const h = document.createElement("div"); h.className = "qhint"; h.textContent = hint; card.appendChild(h); }
+      const opts = document.createElement("div"); opts.className = "opts";
+      opts.setAttribute("role", "radiogroup"); opts.setAttribute("aria-label", question);
+      for (const [val, label] of BEHAVIORS) {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "opt"; b.textContent = label;
+        b.setAttribute("role", "radio"); b.setAttribute("aria-checked", "false");
+        b.onclick = () => select(val);
+        cellsByVal[val] = b;
+        opts.appendChild(b);
+      }
+      card.appendChild(opts);
+      parent.appendChild(card);
+
+      function paint() {
+        for (const [val, el] of Object.entries(cellsByVal)) {
+          const on = selected === val;
+          el.classList.toggle("selected", on);
+          el.setAttribute("aria-checked", on ? "true" : "false");
+        }
+      }
+      function select(val) { selected = val; paint(); onChange(); }
+      return {
+        values() { return selected ? [selected] : []; },
+        complete() { return selected !== null; },
+        restore(arr) {
+          selected = (arr && arr.length && cellsByVal[arr[0]]) ? arr[0] : null;
+          paint();
+        },
+      };
+    }
+
+    async function renderSelfReport(a) {
+      const ctx = a.self_report_context || {};
+      // The 6 post-trial/pre-feedback slots (phase 'rehearsal') get the expanded
+      // form; every other slot keeps the single PAD+emotion form unchanged.
+      srMode = ctx.phase === "rehearsal" ? "rehearsal" : "simple";
+      answers = {}; srBlocks = {}; srChecklist = null;
+      const items = $("items");
+      const onChange = () => { $("submit-btn").disabled = !selfReportComplete(); scheduleSave(); };
+
+      if (srMode === "rehearsal") {
+        showForm("After this round",
+                 "Please answer about the round you just finished. Tap the picture — or the space between two pictures — that best matches how you feel.");
+        srChecklist = buildChecklist(items,
+          "Did the child exhibit any of the following behaviors?",
+          "Select one.", onChange);
+        const s1 = document.createElement("div"); s1.className = "sr-section";
+        s1.textContent = "How did the above behavior make you feel?";
+        items.appendChild(s1);
+        srBlocks.child = buildSamEmotionBlock(items, TASK_FEELINGS_Q_CHILD, onChange);
+        const s2 = document.createElement("div"); s2.className = "sr-section";
+        s2.textContent = "How did you feel about how you handled the interaction?";
+        items.appendChild(s2);
+        srBlocks.handling = buildSamEmotionBlock(items, TASK_FEELINGS_Q_HANDLING, onChange);
+      } else {
+        showForm("After this interaction, how do you feel?",
+                 "For each row, tap the picture — or the space between two pictures — that best matches how you feel; then rate the feelings below.");
+        srBlocks.single = buildSamEmotionBlock(items, TASK_FEELINGS_Q, onChange);
+      }
+      $("submit-btn").disabled = true;  // no default; every part must be answered
 
       // Restore an autosaved draft for this exact context (refresh-restore).
       try {
         const qs = new URLSearchParams();
-        const ctx = a.self_report_context || {};
         for (const k of ["loop_index", "phase", "timepoint", "function_class",
                          "is_problem", "sequence_position", "before_after_robot_action", "trial_id"]) {
           if (ctx[k] !== undefined && ctx[k] !== null) qs.set(k, ctx[k]);
@@ -321,11 +829,23 @@
         const d = await (await fetch(
           `${API}/sessions/${encodeURIComponent(a.session_id)}/self-reports/draft?${qs}`)).json();
         if (d.found) {
-          for (const [k, v] of Object.entries(d.sliders || {})) {
-            if (rngs[k]) { answers[k] = v; rngs[k].value = v; vals[k].textContent = Number(v).toFixed(1); }
+          if (srMode === "rehearsal") {
+            if (srChecklist) srChecklist.restore(d.child_behaviors);
+            srBlocks.child.restore(d.sliders, d.emotions);
+            srBlocks.handling.restore(d.handling_sliders, d.handling_emotions);
+          } else {
+            srBlocks.single.restore(d.sliders, d.emotions);
           }
         }
       } catch (e) { /* no prior draft */ }
+    }
+
+    function selfReportComplete() {
+      if (srMode === "rehearsal") {
+        return !!(srChecklist && srChecklist.complete() &&
+                  srBlocks.child.complete() && srBlocks.handling.complete());
+      }
+      return !!(srBlocks.single && srBlocks.single.complete());
     }
 
     function prettyName(k) {
@@ -358,9 +878,24 @@
 
     async function submitSelfReport() {
       const ctx = current.self_report_context || {};
-      const body = Object.assign({}, ctx, answers);
-      const res = await fetch(
-        `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports`,
+      let url, body;
+      const affect = (x) => ({
+        pleasure: x.pleasure, arousal: x.arousal, dominance: x.dominance,
+        confusion: x.confusion, frustration: x.frustration, boredom: x.boredom,
+      });
+      if (srMode === "rehearsal") {
+        const c = srBlocks.child.bucket, h = srBlocks.handling.bucket;
+        url = `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports/rehearsal`;
+        body = Object.assign({}, ctx, {
+          child_behaviors: srChecklist.values(),
+          child_behavior_affect: affect(c),
+          self_handling_affect: affect(h),
+        });
+      } else {
+        url = `${API}/sessions/${encodeURIComponent(current.session_id)}/self-reports`;
+        body = Object.assign({}, ctx, affect(srBlocks.single.bucket));
+      }
+      const res = await fetch(url,
         { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       handleSubmitResult(res, "Thank you. Your report was submitted.");
     }
@@ -370,6 +905,12 @@
         submitted = true;
         $("submit-btn").textContent = "Submitted";
         $("msg").textContent = okText; $("msg").className = "ok";
+        // Show the thank-you briefly, then return to the progress screen so the
+        // participant isn't left on a finished form. Remember which assignment we
+        // submitted so a later-arriving form is never cleared by this timer.
+        submittedRevision = shownRevision;
+        if (pendingReturnTimer) clearTimeout(pendingReturnTimer);
+        pendingReturnTimer = setTimeout(returnToProgress, 2500);
       } else {
         const err = await res.json().catch(() => ({}));
         const detail = typeof err.detail === "string" ? err.detail : "Please check your answers.";

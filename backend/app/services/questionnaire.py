@@ -142,6 +142,34 @@ def register_questionnaires(db: Session) -> list[Questionnaire]:
     return registered
 
 
+def latest_questionnaires(
+    db: Session, timepoint: str | None = None
+) -> list[Questionnaire]:
+    """One row per questionnaire_key: the latest registered version (highest id).
+
+    A version bump (e.g. dqel 0.1.0-placeholder -> 1.0.0) leaves the old row in
+    the registry for provenance, so a plain listing would show a key twice. This
+    collapses to the current version of each instrument."""
+    stmt = select(Questionnaire)
+    if timepoint is not None:
+        stmt = stmt.where(Questionnaire.timepoint == timepoint)
+    latest: dict[str, Questionnaire] = {}
+    for row in db.scalars(stmt).all():
+        current = latest.get(row.questionnaire_key)
+        if current is None or row.id > current.id:
+            latest[row.questionnaire_key] = row
+    return list(latest.values())
+
+
+def questionnaire_order_index(db: Session, row: Questionnaire) -> int:
+    """The display order for a questionnaire, from its config (default last)."""
+    cfg = get_questionnaire_config(db, row.questionnaire_key, row.version) or {}
+    try:
+        return int(cfg.get("order_index", 999))
+    except (TypeError, ValueError):
+        return 999
+
+
 def get_questionnaire(
     db: Session, questionnaire_key: str, version: str | None = None
 ) -> Questionnaire | None:
@@ -192,6 +220,8 @@ def build_render_spec(config: dict) -> dict:
             "text": text,
             "required": item.get("required", True),
         }
+        if item.get("hint"):
+            out["hint"] = item["hint"]  # short clarifying note shown under the item
         if itype in _NUMERIC_TYPES:
             scale = _item_scale(item, config) if itype == "likert" else None
             if scale is not None:
@@ -207,6 +237,14 @@ def build_render_spec(config: dict) -> dict:
         "questionnaire_key": config["questionnaire_key"],
         "version": str(config.get("version", "")),
         "title": config.get("title"),
+        # A brief, plain-language explanation of what this questionnaire is about
+        # (our own wording, not the copyrighted instrument), shown to the
+        # participant before the items.
+        "intro": config.get("intro"),
+        # The instrument's official instruction: for copyrighted questionnaires it
+        # comes verbatim from the gitignored local file (_instruction); demographics
+        # and placeholders may set it inline in the tracked config.
+        "instruction": local_text.get("_instruction") or config.get("instruction"),
         "timepoint": config.get("timepoint", "na"),
         "scale_type": config.get("scale_type"),
         "response_scale": config.get("response_scale"),

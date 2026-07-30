@@ -2,8 +2,14 @@
 #
 # The study's OWN instrument (source: demographic_questionnaire_social_hri), NOT
 # a copyrighted questionnaire, so the real display text lives inline in this
-# tracked config. Item IDs are stable and independent of display text. 15 items
-# per docs/QUESTIONNAIRE_DEPLOYMENT.md section 4.
+# tracked config. Item IDs are stable and independent of display text. Base set
+# is 15 items per docs/QUESTIONNAIRE_DEPLOYMENT.md section 4; teaching/disability
+# (E) and family/caregiving background (F) items were added later.
+#
+# VERSION NOTE: never edit a released version in place -- bump it, so each session
+# keeps the provenance of the exact instrument it ran. 1.1.0 adds section F
+# (children / younger-sibling / older-adult experience); 1.0.0 stays in the
+# registry for its sessions. The tablet auto-uses the latest registered version.
 #
 # Limitations (engine has no conditional/skip logic or per-option free text):
 #  - Items 11 and 12 are "if yes to item 10" follow-ups; they are marked
@@ -12,10 +18,13 @@
 #    other) are captured as a selectable option value; free-text elaboration is
 #    not separately stored. Flagged for review if elaboration must be captured.
 questionnaire_key: demographics
-version: "1.0.0"
+version: "1.1.0"
 title: "Demographics and Background"
+intro: "A few background questions about you. There are no right or wrong answers, and you may skip any question you would prefer not to answer."
+instruction: "Please answer each question as best you can."
 timepoint: pre
 scale_type: mixed
+order_index: 1
 
 items:
   # A. Basic
@@ -177,3 +186,75 @@ items:
       - {value: moderate, label: "Moderate"}
       - {value: high, label: "High"}
       - {value: very_high, label: "Very high"}
+
+  # E. Teaching background & disability experience
+  - item_id: dem_teaching_experience
+    index: 16
+    type: single_choice
+    text: "Do you have any teaching or instructional experience?"
+    hint: "In any setting, formal or informal (for example: school, tutoring, coaching, training, or mentoring)."
+    required: false
+    options:
+      - {value: "yes", label: "Yes"}
+      - {value: "no", label: "No"}
+
+  - item_id: dem_teaching_experience_detail
+    index: 17
+    type: text
+    text: "If yes, please briefly describe your teaching experience."
+    hint: "For example, the setting, subject, age group, and how long."
+    required: false
+
+  - item_id: dem_family_disability_experience
+    index: 18
+    type: single_choice
+    text: "Do you have a family member with a disability or special needs?"
+    hint: "For example, a developmental, intellectual, physical, or sensory disability. Answer only if you are comfortable doing so."
+    required: false
+    options:
+      - {value: "yes", label: "Yes"}
+      - {value: "no", label: "No"}
+      - {value: no_answer, label: "Prefer not to answer"}
+
+  - item_id: dem_family_disability_relationship
+    index: 19
+    type: text
+    text: "If comfortable, you may note your relationship to that person."
+    hint: "For example, parent, sibling, child, or other relative. This question is optional."
+    required: false
+
+  # F. Family and caregiving background
+  - item_id: dem_has_children
+    index: 20
+    type: single_choice
+    text: "Do you have any children?"
+    required: false
+    options:
+      - {value: "yes", label: "Yes"}
+      - {value: "no", label: "No"}
+      - {value: no_answer, label: "Prefer not to answer"}
+
+  - item_id: dem_children_ages_genders
+    index: 21
+    type: text
+    text: "If applicable and you are comfortable sharing, please indicate each child's age and gender."
+    hint: "For example: 5 (girl), 8 (boy). This question is optional."
+    required: false
+
+  - item_id: dem_lived_with_younger_siblings
+    index: 22
+    type: single_choice
+    text: "Do you have experience living with younger siblings?"
+    required: false
+    options:
+      - {value: "yes", label: "Yes"}
+      - {value: "no", label: "No"}
+
+  - item_id: dem_lived_with_older_adults
+    index: 23
+    type: single_choice
+    text: "Do you have experience living with older adults (for example, aging parents or grandparents)?"
+    required: false
+    options:
+      - {value: "yes", label: "Yes"}
+      - {value: "no", label: "No"}

@@ -104,6 +104,26 @@
     .fidtable td.v-not_applicable { color:#667; }
     .fidtable td.v-unscored { color:#aab; }
     .fidwrap { overflow-x:auto; }
+    /* Preflight checks */
+    .pfrow { display:flex; align-items:center; gap:.6rem; padding:.4rem 0; border-top:1px solid var(--line); }
+    .pfrow:first-child { border-top:none; }
+    .pfrow .pflabel { flex:1 1 auto; }
+    .pfrow .pfdetail { color:var(--muted); font-size:.82rem; }
+    .pill.pf-pass { background:#e8f7ef; color:var(--accent-dark); border-color:#bfe6cf; }
+    .pill.pf-fail { background:#fdecea; color:var(--bad); border-color:#f6c4bd; }
+    .pill.pf-warn { background:#fef3e2; color:var(--warn); border-color:#f6dcae; }
+    .pill.pf-na   { background:#eef1f4; color:#667; border-color:#d7dde3; }
+    /* Recordings tab */
+    .rec-card { border:1px solid var(--line); border-radius:12px; padding:1rem 1.1rem; margin-bottom:1rem; background:#fff; }
+    .rec-head { display:flex; align-items:center; gap:.6rem; flex-wrap:wrap; }
+    .rec-head h3 { margin:0; font-size:1.02rem; }
+    .rec-meta { color:var(--muted); font-size:.85rem; margin:.35rem 0 .6rem; }
+    .rec-video { width:100%; max-height:60vh; background:#000; border-radius:8px; display:block; }
+    .rec-actions { display:flex; gap:.5rem; flex-wrap:wrap; margin-top:.6rem; align-items:center; }
+    .rec-err { color:var(--bad); font-size:.85rem; margin:.3rem 0; }
+    .pill.st-recording, .pill.st-completed { background:#e8f7ef; color:var(--accent-dark); border-color:#bfe6cf; }
+    .pill.st-failed, .pill.st-none { background:#fdecea; color:var(--bad); border-color:#f6c4bd; }
+    .pill.st-interrupted, .pill.st-pending { background:#fef3e2; color:var(--warn); border-color:#f6dcae; }
     /* Modal */
     .modal-bg { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:20; }
     .modal-bg.show { display:flex; }
@@ -121,6 +141,7 @@
     <span class="pill" id="hdr-stage">Setup</span>
     <span class="pill state-created" id="hdr-state">—</span>
     <span class="grow"></span>
+    <button class="note-btn" id="btn-tab-rec">🎥 Recordings</button>
     <button class="note-btn" id="btn-note" disabled>＋ Add note</button>
   </header>
 
@@ -145,9 +166,15 @@
         <button class="primary" id="btn-create">Create &amp; start session</button>
         <div class="msg" id="setup-msg"></div>
       </div>
+      <div class="card" id="preflight-card">
+        <h2>Pre-session checks <span class="pill" id="preflight-overall" style="margin-left:.4rem;">—</span></h2>
+        <p class="hint">Verified automatically. A red <b>required</b> check blocks start — two pilots ran blind because these were never actually checked. Fix it, or start with an explicit, logged override.</p>
+        <button class="secondary" id="btn-preflight">Re-run checks</button>
+        <div id="preflight-list" style="margin-top:.6rem;">—</div>
+      </div>
       <div class="card">
-        <h2>Pre-session checklist</h2>
-        <p class="hint">You can advance once the session is running; the checklist is your reminder.</p>
+        <h2>Consent &amp; setup reminders</h2>
+        <p class="hint">Human checks the platform can't verify. Confirm before starting.</p>
         <ul class="check" id="pre-check"></ul>
       </div>
     </section>
@@ -286,6 +313,16 @@
       </div>
     </section>
 
+    <!-- TAB: RECORDINGS (rewatch + archive; outside the session stepper) -->
+    <section id="view-recordings" class="stage hidden">
+      <div class="card">
+        <h2>Recordings <span class="pill" id="rec-sid" style="margin-left:.4rem;">—</span></h2>
+        <p class="hint">Live recording state, rewatch the A/V, and archive a copy. The original file always stays in the platform's recordings folder — <b>Save</b> and <b>Save As</b> only ever copy it, so no video data is lost.</p>
+        <button class="secondary" id="btn-rec-refresh">Refresh</button>
+        <div id="rec-list" style="margin-top:.8rem;">—</div>
+      </div>
+    </section>
+
     <footer class="tip">Operator Console v1 · all actions are deliberate · override is the gate safety valve</footer>
   </div>
 
@@ -319,6 +356,7 @@ const S = {
   pid: null, sid: null, running: false, state: null,
   stage: "setup", pollTimer: null, qPollTimer: null,
   fid: null,  // fidelity scoring state: { loop, scores:{loop_index:row}, saveTimer }
+  tab: "session", recPoll: null,  // recordings tab state
 };
 
 // --- tiny helpers -----------------------------------------------------------
@@ -373,6 +411,7 @@ function goStage(stg) {
   if (stg==="live") { startPoll(); loadFidelity(); }
   if (stg==="onboarding") loadQuestionnaires("pre","pre-q","preq-msg");
   if (stg==="post") loadQuestionnaires("post","post-q","postq-msg");
+  if (stg==="setup") loadPreflight();
   if (stg==="closeout") loadCompleteness();
 }
 
@@ -397,10 +436,15 @@ $("btn-create").onclick = async () => {
   let r = await api("POST","/participants",{participant_id:pid});
   if (!r.ok && r.status!==409) { setMsg("setup-msg","Participant: "+r.error,"err"); btn.disabled=false; return; }
 
-  // 2) attach a registered protocol if one exists (best effort; keeps trials/exports coherent)
+  // 2) attach a registered protocol if one exists (best effort; keeps trials/exports coherent).
+  // Pick the NEWEST registered protocol (highest protocol_id). Older versions stay
+  // in the registry so past sessions keep the provenance of what they actually ran;
+  // taking [0] would silently pin every new session to the oldest (placeholder) one.
   let protocol_id = null;
   const pr = await api("GET","/protocols");
-  if (pr.ok && Array.isArray(pr.data) && pr.data.length) protocol_id = pr.data[0].protocol_id;
+  if (pr.ok && Array.isArray(pr.data) && pr.data.length) {
+    protocol_id = pr.data.reduce((a,b) => (b.protocol_id > a.protocol_id ? b : a)).protocol_id;
+  }
 
   // 3) create session
   const payload = { session_id:sid, participant_id:pid, scenario_type:"bst_dtt",
@@ -409,14 +453,50 @@ $("btn-create").onclick = async () => {
   r = await api("POST","/sessions",payload);
   if (!r.ok) { setMsg("setup-msg","Session: "+r.error,"err"); btn.disabled=false; return; }
 
-  // 4) start (generates dtt_loops)
+  // 4) start (generates dtt_loops) — gated by the preflight checks (P0.12)
   r = await api("POST","/sessions/"+encodeURIComponent(sid)+"/start");
+  if (!r.ok && r.status===409) {
+    let detail={}; try { detail=JSON.parse(r.error); } catch(_){}
+    const failed=(detail.checks||[]).map(c=>"• "+c.label+" — "+c.detail).join("\n");
+    loadPreflight();  // surface the red checks in the card
+    const reason = prompt(
+      "PRE-SESSION CHECKS FAILED — this session would run blind:\n\n"+failed+
+      "\n\nEnter a reason to start ANYWAY (recorded to the session timeline), or Cancel to fix first.", "");
+    if (reason===null || !reason.trim()) {
+      setMsg("setup-msg","Start blocked by preflight. Fix the checks above, then try again.","err");
+      btn.disabled=false; return;
+    }
+    r = await api("POST","/sessions/"+encodeURIComponent(sid)+"/start"
+      +"?override=true&override_operator=console&override_reason="+encodeURIComponent(reason.trim()));
+  }
   if (!r.ok) { setMsg("setup-msg","Start: "+r.error,"err"); btn.disabled=false; return; }
 
   S.pid=pid; S.sid=sid; S.state=r.data.state; S.running=(r.data.state==="running");
   setMsg("setup-msg","Session created and running. Canonical ID: "+sid+" — use this everywhere.","ok");
   renderHeader(); renderStepper();
 };
+
+// --- Pre-session preflight (P0.12) -----------------------------------------
+function renderPreflight(rep){
+  const box=$("preflight-list");
+  box.innerHTML = (rep.checks||[]).map(c=>{
+    const cls = c.status==="pass"?"pf-pass":(c.status==="fail"?"pf-fail":(c.status==="warn"?"pf-warn":"pf-na"));
+    const flag = (c.required && c.status==="fail") ? " ⛔" : "";
+    return '<div class="pfrow"><span class="pflabel">'+escapeHtml(c.label)+flag
+      +'<div class="pfdetail">'+escapeHtml(c.detail||"")+'</div></span>'
+      +'<span class="pill '+cls+'">'+escapeHtml(c.status)+'</span></div>';
+  }).join("") || '<p class="hint">No checks.</p>';
+  const ov=$("preflight-overall");
+  if(rep.ready){ ov.textContent="ready"; ov.className="pill pf-pass"; }
+  else { ov.textContent=((rep.blocking&&rep.blocking.length)||0)+" blocking"; ov.className="pill pf-fail"; }
+}
+async function loadPreflight(){
+  const box=$("preflight-list"); box.textContent="Checking…";
+  const r=await api("GET","/preflight");
+  if(!r.ok){ box.textContent="Unavailable: "+escapeHtml(r.error); $("preflight-overall").textContent="?"; return; }
+  renderPreflight(r.data);
+}
+$("btn-preflight").onclick = loadPreflight;
 
 // --- Questionnaire push + status -------------------------------------------
 // Exact registered version per key (from the questionnaire list). The submission
@@ -1001,6 +1081,113 @@ $("btn-reset").onclick = () => {
   initChecklists();
   goStage("setup"); renderHeader(); renderStepper();
 };
+
+// --- Recordings tab: live state, rewatch, archive --------------------------
+function fmtBytes(n){ if(n==null) return "?"; const u=["B","KB","MB","GB"]; let i=0,x=n; while(x>=1024&&i<u.length-1){x/=1024;i++;} return x.toFixed(i?1:0)+" "+u[i]; }
+function fmtDurMs(ms){ if(ms==null) return "?"; const s=Math.floor(ms/1000); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+const REC_PLAYABLE = ["completed","interrupted"];
+
+$("btn-tab-rec").onclick = () => { S.tab==="recordings" ? showSession() : showRecordings(); };
+
+function showRecordings(){
+  S.tab="recordings";
+  stopPoll(); stopQPoll();  // pause the session polls while off the session view
+  $("stepper").classList.add("hidden");
+  STAGES.forEach(x=>$("stage-"+x).classList.add("hidden"));
+  $("view-recordings").classList.remove("hidden");
+  $("btn-tab-rec").textContent="← Back to session";
+  $("hdr-stage").textContent="Recordings";
+  loadRecordings();
+}
+function showSession(){
+  S.tab="session"; stopRecPoll();
+  $("view-recordings").classList.add("hidden");
+  $("stepper").classList.remove("hidden");
+  $("btn-tab-rec").textContent="🎥 Recordings";
+  goStage(S.stage);  // restores the current stage + its polling + header
+}
+
+function stopRecPoll(){ if(S.recPoll){ clearInterval(S.recPoll); S.recPoll=null; } }
+function startRecPoll(){ stopRecPoll(); S.recPoll=setInterval(refreshRec, 3000); }
+
+async function loadRecordings(){
+  $("rec-sid").textContent = S.sid || "no session";
+  const box=$("rec-list");
+  if(!S.sid){ box.innerHTML='<p class="hint">No session yet. Create a session (Setup) to see its recordings.</p>'; stopRecPoll(); return; }
+  box.innerHTML="Loading…";
+  await refreshRec();
+}
+
+async function refreshRec(){
+  if(S.tab!=="recordings" || !S.sid) return;
+  const r=await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/recordings");
+  const box=$("rec-list");
+  if(!r.ok){ box.innerHTML='<p class="hint">Could not load recordings: '+escapeHtml(r.error)+'</p>'; return; }
+  const recs=r.data||[];
+  renderRecList(recs);
+  // Poll only while something is in flight; stop once terminal so we never
+  // re-render (and reset) a player the operator is watching.
+  if(recs.some(x=>["recording","pending"].includes(x.status))) startRecPoll(); else stopRecPoll();
+}
+
+function renderRecList(recs){
+  const box=$("rec-list");
+  if(!recs.length){ box.innerHTML='<p class="hint">No recordings for this session yet. One starts automatically when the session starts (if recording is enabled).</p>'; return; }
+  box.innerHTML = recs.map(renderRecCard).join("");
+  recs.forEach(rec=>{
+    const s=$("rec-save-"+rec.recording_id); if(s) s.onclick=()=>saveRec(rec.recording_id,"default");
+    const a=$("rec-saveas-"+rec.recording_id); if(a) a.onclick=()=>saveRec(rec.recording_id,"as");
+  });
+}
+
+function renderRecCard(rec){
+  const playable = REC_PLAYABLE.includes(rec.status);
+  const inFlight = ["recording","pending"].includes(rec.status);
+  let h='<div class="rec-card"><div class="rec-head"><h3>'+escapeHtml(rec.file_name||("recording "+rec.recording_id))+'</h3>'
+    +'<span class="pill st-'+escapeHtml(rec.status)+'">'+escapeHtml(rec.status)+'</span></div>';
+  const bits=[];
+  if(rec.duration_ms!=null) bits.push("duration "+fmtDurMs(rec.duration_ms));
+  if(rec.resolution) bits.push(rec.resolution+(rec.fps?("@"+rec.fps):""));
+  if(rec.codec) bits.push(escapeHtml(rec.codec));
+  bits.push(escapeHtml(rec.file_path||""));
+  h+='<div class="rec-meta">'+bits.join(" · ")+'</div>';
+  if(rec.error_text) h+='<div class="rec-err">⚠ '+escapeHtml(rec.error_text)+'</div>';
+  if(playable){
+    const src="/sessions/"+encodeURIComponent(S.sid)+"/recordings/"+rec.recording_id+"/file";
+    h+='<video class="rec-video" controls preload="metadata" src="'+src+'"></video>';
+  } else if(inFlight){
+    h+='<div class="hint">Recording in progress… the player appears when it finishes.</div>';
+  } else {
+    h+='<div class="hint">No playable video for this recording.</div>';
+  }
+  h+='<div class="rec-actions">';
+  if(playable){
+    h+='<button class="secondary" id="rec-save-'+rec.recording_id+'">Save (default folder)</button>';
+    h+='<button class="secondary" id="rec-saveas-'+rec.recording_id+'">Save As…</button>';
+  }
+  h+='<span class="msg" id="rec-saved-'+rec.recording_id+'"></span></div></div>';
+  return h;
+}
+
+async function saveRec(id, mode){
+  let dest=null;
+  if(mode==="as"){
+    dest=prompt("Save a copy to (server path — a folder, or a full file path incl. filename):","");
+    if(dest===null || !dest.trim()) return;
+  }
+  const msg=$("rec-saved-"+id); if(msg){ msg.textContent="Saving…"; msg.className="msg"; }
+  const body={mode}; if(dest!=null) body.dest_path=dest;
+  let r=await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/recordings/"+id+"/save", body);
+  if(!r.ok && r.status===409 && /already exists/.test(r.error||"")){
+    if(confirm("A file already exists at that location. Overwrite it?\n(The original recording is never touched.)")){
+      body.overwrite=true; r=await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/recordings/"+id+"/save", body);
+    } else { if(msg){ msg.textContent="Save cancelled."; msg.className="msg"; } return; }
+  }
+  if(!r.ok){ if(msg){ msg.textContent="Save failed: "+r.error; msg.className="msg err"; } return; }
+  if(msg){ msg.innerHTML="✓ Copied to <b>"+escapeHtml(r.data.saved_to)+"</b> ("+fmtBytes(r.data.bytes)+"). Original kept."; msg.className="msg ok"; }
+}
+
+$("btn-rec-refresh").onclick = () => loadRecordings();
 
 // --- init -------------------------------------------------------------------
 function initChecklists() {

@@ -19,9 +19,12 @@ from app.api import (
     finish,
     health,
     launch,
+    monitor,
     notes,
     participants,
     perception,
+    preflight,
+    progress,
     protocols,
     questionnaires,
     recordings,
@@ -39,6 +42,10 @@ from app.models import Base
 from app.services.backup import backup_database
 from app.services.protocol import register_protocols
 from app.services.questionnaire import register_questionnaires
+from app.services.recording import (
+    reconcile_stale_recordings,
+    shutdown_active_recordings,
+)
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -57,9 +64,16 @@ async def lifespan(app: FastAPI):
         # Register questionnaire configs (additive/idempotent) so the tablet can
         # render them and the experimenter can discover questionnaire keys.
         register_questionnaires(db)
+        # Close out recordings a previous process left mid-flight (crash / kill):
+        # rescue an orphaned ffmpeg by SIGINT (it finalizes the mp4), then record
+        # the honest status instead of leaving a stale 'recording' row forever.
+        reconcile_stale_recordings(db)
     finally:
         db.close()
     yield
+    # Graceful shutdown: finalize any in-flight recording so no mp4 is left
+    # unwritten and no ffmpeg is orphaned.
+    shutdown_active_recordings()
 
 
 app = FastAPI(
@@ -94,6 +108,9 @@ app.include_router(launch.router)
 app.include_router(tablet.router)
 app.include_router(fidelity.router)
 app.include_router(finish.router)
+app.include_router(preflight.router)
+app.include_router(progress.router)
+app.include_router(monitor.router)
 
 # Minimal participant-intake UI (interim; superseded by the React+Vite app in a
 # later phase). Served at /ui/.

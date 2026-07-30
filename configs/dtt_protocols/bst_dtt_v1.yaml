@@ -1,39 +1,121 @@
-# Placeholder BST/DTT protocol. Participant-independent: the 6-loop structure
-# (function_class per loop, sequence) is NOT here -- it depends on the
-# participant's pb_order_group and lives in dtt_loops (session/loop setup).
-# Swap in real phases / skills / steps / SDs by editing this file; no code change.
+# BST/DTT protocol: a human trainer (the participant) runs DTT trials with a
+# child robot, coached by a trainer robot.
+#
+# Participant-independent. The 6-loop structure (which named SD lands in which
+# loop, and its function_class) depends on the participant's pb_order_group and
+# is materialized in dtt_loops at session start -- it is NOT here.
+#
+# Source of truth for the content below: the robot repo's data/trial_data.json
+# and data/hp_trial_data.json (bst-study). The mapping named SD -> loop position
+# lives in app/services/dtt_loops.NAMED_SD_BY_GROUP; a test asserts this config
+# and that mapping agree, so the two repos cannot drift apart silently.
+#
+# VERSION NOTE: 0.1.0-placeholder stays in the registry for the sessions that ran
+# under it. Never edit a released version in place -- bump it, so each session
+# keeps the provenance (config_hash) of the protocol it actually ran.
+# 1.1.0 corrects the Receptive Instruction SD ("Can you shake your head?") and the
+# error-correction HP SD ("Can you nod your head?"); 1.0.0 stays for its sessions.
+# 1.2.0 rephrases the Imitation SD ("Please do this.") and the Receptive
+# Instruction SD ("Please shake your head."); 1.1.0 stays for its sessions.
 protocol_key: bst_dtt_v1
-version: "0.1.0-placeholder"
-title: "BST/DTT placeholder protocol"
+version: "1.2.0"
+title: "BST/DTT protocol (human trainer -> child robot)"
 
-prompt_levels: [independent, gestural, verbal, partial_physical, full_physical]
-
-sds:                      # the six discriminative stimuli for the rehearsal phase
-  - sd_id: sd_1
-    label: "SD 1 (placeholder)"
-  - sd_id: sd_2
-    label: "SD 2 (placeholder)"
-  - sd_id: sd_3
-    label: "SD 3 (placeholder)"
-  - sd_id: sd_4
-    label: "SD 4 (placeholder)"
-  - sd_id: sd_5
-    label: "SD 5 (placeholder)"
-  - sd_id: sd_6
-    label: "SD 6 (placeholder)"
+# This protocol has NO prompt-level hierarchy. When the child responds
+# incorrectly or not at all, error correction runs as a FIXED sequence:
+#   prompting -> hp_sd (high-probability SD) -> retry_sd (re-present the SD)
+# followed by the final reinforcement. `prompt_level` is therefore unused
+# (optional, left empty); how far a trial went into error correction is
+# recoverable from the per-step dtt_performance_events.
+prompt_levels: []
+ec_sequence: [prompting, hp_sd, retry_sd]
 
 phases:
-  - phase_key: baseline
-    label: "Baseline"
+  - phase_key: rehearsal
+    label: "Rehearsal"
     order_index: 1
+    # Skills are the SD types. No step decomposition exists in this protocol
+    # (the child's behavior is a single scripted behavior), so `steps` is empty
+    # and missed_steps/extra_steps are unused.
     target_skills:
-      - skill_id: skill_a
-        label: "Skill A (placeholder)"
-        steps: [step_1, step_2, step_3]    # ordered step IDs for missed/extra-step validation
-  - phase_key: acquisition
-    label: "Acquisition"
-    order_index: 2
-    target_skills:
-      - skill_id: skill_a
-        label: "Skill A (placeholder)"
-        steps: [step_1, step_2, step_3]
+      - {skill_id: manding,   label: "Manding",   steps: []}
+      - {skill_id: reception, label: "Reception", steps: []}
+      - {skill_id: imitation, label: "Imitation", steps: []}
+      - {skill_id: labeling,  label: "Labeling",  steps: []}
+      - {skill_id: emotion,   label: "Emotion",   steps: []}
+
+# Positional SD cells. These match dtt_loops.sd_id (sd_{loop_index}); WHICH
+# named SD occupies a cell depends on pb_order_group (see named_sds below).
+sds:
+  - {sd_id: sd_1, label: "SD cell 1"}
+  - {sd_id: sd_2, label: "SD cell 2"}
+  - {sd_id: sd_3, label: "SD cell 3"}
+  - {sd_id: sd_4, label: "SD cell 4"}
+  - {sd_id: sd_5, label: "SD cell 5"}
+  - {sd_id: sd_6, label: "SD cell 6"}
+
+# The six real SDs. `function_class` uses the platform's vocabulary and equals
+# the robot's pb_response_type (null -> baseline). Cells 1/3/5 always hold the
+# three baseline SDs; cells 2/4/6 rotate the three problem-behavior SDs by
+# pb_order_group. Only the problem SDs have an error-correction path.
+named_sds:
+  - name: "Manding"
+    sd: "What do you want to work for?"
+    sd_type: Manding
+    target_skill: manding
+    scripted_correctness: "Correct"
+    challenge: null
+    function_class: baseline
+    error_correction: false
+
+  - name: "Receptive Instruction"
+    sd: "Please shake your head."
+    sd_type: Reception
+    target_skill: reception
+    scripted_correctness: "No Response"
+    challenge: Medium
+    function_class: NR
+    error_correction: true
+
+  - name: "Imitation"
+    sd: "Please do this."
+    sd_type: Imitation
+    target_skill: imitation
+    scripted_correctness: "Correct"
+    challenge: null
+    function_class: baseline
+    error_correction: false
+
+  - name: "Tacting and Labeling"
+    sd: "What am I holding?"
+    sd_type: Labeling
+    target_skill: labeling
+    scripted_correctness: "No Response"
+    challenge: Medium
+    function_class: PR
+    error_correction: true
+
+  - name: "Emotion Labeling"
+    sd: "How do I feel?"
+    sd_type: Emotion
+    target_skill: emotion
+    scripted_correctness: "Correct"
+    challenge: null
+    function_class: baseline
+    error_correction: false
+
+  - name: "Receptive Expression"
+    sd: "Show me your happy face."
+    sd_type: Reception
+    target_skill: reception
+    scripted_correctness: "No Response"
+    challenge: Medium
+    function_class: AR
+    error_correction: true
+
+# High-probability SDs presented during error correction (the hp_sd step), to
+# rebuild behavioral momentum before the original SD is re-presented.
+hp_sds:
+  - {hp_id: SD_1, sd: "Can you nod your head?", sd_type: Reception}
+  - {hp_id: SD_2, sd: "What are we working for", sd_type: Manding}
+  - {hp_id: SD_3, sd: "What color is the ball.", sd_type: Tacting}

@@ -104,6 +104,9 @@ class PerceptionSource(ABC):
     def health(self) -> bool:  # pragma: no cover - overridden where meaningful
         return True
 
+    def gateway_status(self) -> dict | None:  # pragma: no cover - overridden where meaningful
+        return None
+
     def close(self) -> None:  # pragma: no cover - default no-op
         return None
 
@@ -153,6 +156,28 @@ class HttpPollingSource(PerceptionSource):
             return self._client.get(f"{self._base}/health").status_code == 200  # READ-ONLY
         except Exception:  # noqa: BLE001
             return False
+
+    def gateway_status(self) -> dict | None:
+        """Parsed body of the orchestrator's ``/debug/gateway-status``, or None.
+
+        ``/health`` only proves the orchestrator's web process is alive; its media
+        gateway (the link that actually forwards camera/audio samples into the
+        perception pipeline) can be disconnected while ``/health`` still returns
+        200. This debug endpoint is what the orchestrator's own live dashboard
+        reads to show 'Gateway connected/disconnected'. Returns None when the
+        endpoint is absent (older orchestrator), unreachable, or unparseable --
+        the caller treats None as 'could not verify', never as 'connected'.
+        """
+        try:
+            resp = self._client.get(f"{self._base}/debug/gateway-status")  # READ-ONLY
+        except Exception:  # noqa: BLE001
+            return None
+        if resp.status_code != 200:
+            return None
+        try:
+            return resp.json()
+        except Exception:  # noqa: BLE001
+            return None
 
     def close(self) -> None:
         self._client.close()

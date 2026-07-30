@@ -13,10 +13,30 @@ new form and switch without participant action.
 from __future__ import annotations
 
 import threading
+import time
 
 from app.core.timeutil import now_utc_iso
 
 _lock = threading.Lock()
+
+# Monotonic timestamp of the tablet's last poll of /tablet/assignment. Used by
+# the preflight gate to tell whether a tablet is actually connected (it polls
+# every ~1.5s). None until the first poll.
+_last_poll_monotonic: float | None = None
+
+
+def mark_tablet_poll() -> None:
+    global _last_poll_monotonic
+    with _lock:
+        _last_poll_monotonic = time.monotonic()
+
+
+def seconds_since_tablet_poll() -> float | None:
+    """Seconds since the tablet last polled, or None if it never has."""
+    with _lock:
+        if _last_poll_monotonic is None:
+            return None
+    return time.monotonic() - _last_poll_monotonic
 _state: dict = {
     "revision": 0,
     "form_type": "idle",  # idle | questionnaire | self_report

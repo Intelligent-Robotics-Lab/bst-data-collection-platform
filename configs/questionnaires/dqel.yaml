@@ -1,23 +1,58 @@
-# D-QEL -- placeholder (post-session). Structure pending the real instrument.
+# Dutch Questionnaire on Emotional Labor (D-QEL; Briet, Naring, Brouwers & van
+# Droffelaar, 2005). 13 items, response scale 1-5 (never .. always).
 #
-# This config exists so the engine, tablet rendering, and exports have a real
-# D-QEL entry to attach to. The item set below is a minimal placeholder; replace
-# the items with the official D-QEL content (a config edit only) when available.
+# COPYRIGHT / PUBLIC REPO: the item wording is NOT in this tracked config. It is
+# loaded at render time from the GITIGNORED local file
+# configs/questionnaires/local/dqel.items.yaml (join by item_id). On a public
+# clone with no local file, items render with empty text.
+#
+# Items are in the source's administration ("usual") order. Subscales and their
+# member items are the published scoring key.
+#
+# VERSION NOTE: 0.1.0-placeholder stays in the registry for sessions that ran
+# under it; never edit a released version in place. This is the first real (1.0.0)
+# D-QEL.
 questionnaire_key: dqel
-version: "0.1.0-placeholder"
-title: "D-QEL (placeholder)"
+version: "1.0.0"
+title: "Dutch Questionnaire on Emotional Labor (D-QEL)"
+intro: "These questions ask how you managed and expressed your emotions during the session you just completed. There are no right or wrong answers."
 timepoint: post
-scale_type: likert_7
+scale_type: likert_5
+order_index: 12
 
 response_scale:
   type: likert
   min: 1
-  max: 7
+  max: 5
   anchors:
-    1: "strongly disagree"
-    7: "strongly agree"
+    1: "never"
+    2: "sometimes"
+    3: "regularly"
+    4: "often"
+    5: "always"
 
+# Scoring key (post hoc; the engine does not score). No reversals. Each subscale
+# = mean of its items.
+scoring:
+  reversals: none
+  subscales:
+    emotional_consonance: [dqel_01, dqel_02]
+    deep_acting:          [dqel_03, dqel_10, dqel_13]
+    suppression:          [dqel_04, dqel_06, dqel_12]
+    surface_acting:       [dqel_05, dqel_07, dqel_08, dqel_09, dqel_11]
+
+# Item text lives in the gitignored local file (by item_id).
 items:
-  - {item_id: dqel_01, index: 1, text: "D-QEL item 1 (placeholder; insert official wording)"}
-  - {item_id: dqel_02, index: 2, text: "D-QEL item 2 (placeholder; insert official wording)"}
-  - {item_id: dqel_03, index: 3, text: "D-QEL item 3 (placeholder; insert official wording)"}
+  - {item_id: dqel_01, index: 1,  subscale: emotional_consonance}
+  - {item_id: dqel_02, index: 2,  subscale: emotional_consonance}
+  - {item_id: dqel_03, index: 3,  subscale: deep_acting}
+  - {item_id: dqel_04, index: 4,  subscale: suppression}
+  - {item_id: dqel_05, index: 5,  subscale: surface_acting}
+  - {item_id: dqel_06, index: 6,  subscale: suppression}
+  - {item_id: dqel_07, index: 7,  subscale: surface_acting}
+  - {item_id: dqel_08, index: 8,  subscale: surface_acting}
+  - {item_id: dqel_09, index: 9,  subscale: surface_acting}
+  - {item_id: dqel_10, index: 10, subscale: deep_acting}
+  - {item_id: dqel_11, index: 11, subscale: surface_acting}
+  - {item_id: dqel_12, index: 12, subscale: suppression}
+  - {item_id: dqel_13, index: 13, subscale: deep_acting}

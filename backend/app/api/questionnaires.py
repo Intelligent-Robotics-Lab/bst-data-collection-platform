@@ -11,18 +11,21 @@ plus a backend restart; no code change here.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models.questionnaire import Questionnaire
 from app.schemas.questionnaire import (
     AnswersPayload,
     QuestionnaireRead,
     ResponseSummary,
     ResponsesRead,
 )
-from app.services.questionnaire import build_render_spec, get_questionnaire_config
+from app.services.questionnaire import (
+    build_render_spec,
+    get_questionnaire_config,
+    latest_questionnaires,
+    questionnaire_order_index,
+)
 from app.services.questionnaire_response import (
     get_responses,
     save_partial,
@@ -41,10 +44,11 @@ def list_questionnaires(
     timepoint: str | None = Query(default=None, pattern="^(pre|post|na)$"),
     db: Session = Depends(get_db),
 ):
-    stmt = select(Questionnaire)
-    if timepoint is not None:
-        stmt = stmt.where(Questionnaire.timepoint == timepoint)
-    return db.scalars(stmt.order_by(Questionnaire.id)).all()
+    # One row per key (latest version), ordered by each config's order_index so
+    # the operator pushes them in the intended sequence -- demographics first in
+    # pre-session.
+    rows = latest_questionnaires(db, timepoint)
+    return sorted(rows, key=lambda r: (questionnaire_order_index(db, r), r.questionnaire_key))
 
 
 @router.get("/{questionnaire_key}/config")

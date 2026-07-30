@@ -19,6 +19,8 @@ from app.schemas.self_report import (
     FunctionClass,
     IsProblem,
     Phase,
+    RehearsalSelfReportCreate,
+    SelfReportAutosave,
     SelfReportContext,
     SelfReportCreate,
     SelfReportDraftRead,
@@ -26,7 +28,12 @@ from app.schemas.self_report import (
     SelfReportRead,
     Timepoint,
 )
-from app.services.self_report import add_self_report, get_draft, save_draft
+from app.services.self_report import (
+    add_rehearsal_self_report,
+    add_self_report,
+    get_draft,
+    save_draft,
+)
 from app.services.session_service import get_session_or_404
 
 router = APIRouter(prefix="/sessions/{session_id}/self-reports", tags=["self-reports"])
@@ -38,6 +45,20 @@ def create_self_report(
 ):
     session = get_session_or_404(db, session_id)
     return add_self_report(db, session, payload)
+
+
+@router.post(
+    "/rehearsal",
+    response_model=list[SelfReportRead],
+    status_code=status.HTTP_201_CREATED,
+)
+def create_rehearsal_self_report(
+    session_id: str, payload: RehearsalSelfReportCreate, db: Session = Depends(get_db)
+):
+    """Expanded post-trial/pre-feedback form: behavior checklist + two PAD+emotion
+    sets. Writes two rows (child_behavior + self_handling) atomically."""
+    session = get_session_or_404(db, session_id)
+    return add_rehearsal_self_report(db, session, payload)
 
 
 @router.get("", response_model=list[SelfReportRead])
@@ -52,10 +73,11 @@ def list_self_reports(session_id: str, db: Session = Depends(get_db)):
 
 @router.post("/autosave", response_model=SelfReportDraftSummary)
 def autosave_self_report(
-    session_id: str, payload: SelfReportCreate, db: Session = Depends(get_db)
+    session_id: str, payload: SelfReportAutosave, db: Session = Depends(get_db)
 ):
-    """Autosave in-progress sliders for one context. Draft only: no raw row, no
-    timeline event. Upserts the single draft for this (session, context)."""
+    """Autosave in-progress SAM picks for one context (any subset of the three).
+    Draft only: no raw row, no timeline event. Upserts the single draft for this
+    (session, context)."""
     session = get_session_or_404(db, session_id)
     return save_draft(db, session, payload)
 

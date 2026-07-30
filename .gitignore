@@ -32,6 +32,8 @@ dist/
 /data/bst.db-wal
 /data/bst.db-shm
 /data/recordings/*
+# Archival copies made by the console's Save / Save As (participant A/V).
+/data/saved_recordings/*
 /data/exports/*
 /data/logs/*
 /data/sessions/*
@@ -40,3 +42,9 @@ dist/
 
 # OS
 .DS_Store
+
+# Self-Assessment Manikin art (Bradley & Lang 1994, NIMH CSEA; copyrighted,
+# non-commercial research use). Public repo: source scan + extracted figures
+# stay local, never committed. The tablet loads them from static/sam at runtime.
+/docs/SAM/
+/backend/app/static/sam/

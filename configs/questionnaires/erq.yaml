@@ -20,8 +20,10 @@
 questionnaire_key: erq
 version: "1.0.0"
 title: "Emotion Regulation Questionnaire (ERQ)"
+intro: "These questions ask how you usually manage and control your emotions. There are no right or wrong answers; answer how each statement generally applies to you."
 timepoint: pre
 scale_type: likert_7
+order_index: 2
 
 # Default response scale, applied to every likert item.
 response_scale:

@@ -118,6 +118,12 @@ def _has_matching_self_report(db: Session, session_id: str, ident: dict) -> bool
             ParticipantSelfReport.loop_index == ident["loop_index"],
             ParticipantSelfReport.phase == LOOP_CHECKPOINT_PHASE[ident["checkpoint"]],
         )
+        # The post_kid_response slot submits an expanded two-row form
+        # (child_behavior + self_handling). self_handling is written last, in the
+        # same transaction, so gating on it means a mid-submit failure leaves the
+        # gate open (clean retry) instead of closing on a half-finished form.
+        if ident["checkpoint"] == "post_kid_response":
+            q = q.where(ParticipantSelfReport.referent == "self_handling")
     return db.scalar(q.limit(1)) is not None
 
 

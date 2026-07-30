@@ -21,18 +21,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.core.timeutil import now_utc_iso
 from app.models.base import Base
 
-# Reusable bound for the nine bipolar self-report sliders.
-_SLIDER_FIELDS = (
-    "pleasure",
-    "arousal",
-    "dominance",
-    "confidence",
-    "frustration",
-    "engagement",
-    "perceived_challenge",
-    "perceived_support",
-    "cognitive_load",
-)
+# The active self-report answer columns and their DB-level CHECK ranges. SAM
+# dimensions are integer [-4, +4]; the four task-feeling ratings are integer
+# [1, 5]. Reused to generate CHECK constraints on both the record and draft
+# tables (NULL passes a range CHECK, so partial autosave drafts are allowed).
+_SAM_COLS = ("pleasure", "arousal", "dominance")
+_EMO_COLS = ("confusion", "frustration", "boredom")
 
 
 class RobotEvent(Base):
@@ -90,17 +84,25 @@ class ParticipantSelfReport(Base):
     is_problem: Mapped[str | None] = mapped_column(String, nullable=True)
     source: Mapped[str] = mapped_column(String, nullable=False, default="sr")
     before_after_robot_action: Mapped[str | None] = mapped_column(String, nullable=True)
+    # What this row is ABOUT: 'overall' (every simple report) | 'child_behavior' |
+    # 'self_handling'. The 6 post-trial/pre-feedback rehearsal slots write two rows
+    # (child_behavior + self_handling); all other slots write one 'overall' row.
+    # Nullable: rows written before this field never had it (they are 'overall').
+    referent: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Child-behavior checklist for the rehearsal slot, JSON list (e.g.
+    # ["vocalization","disruption"] or ["none"]). Set only on the child_behavior
+    # row; NULL everywhere else.
+    child_behaviors: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    # PAD + ratings, continuous bipolar [-5, +5].
-    pleasure: Mapped[float | None] = mapped_column(Float, nullable=True)  # == valence
-    arousal: Mapped[float | None] = mapped_column(Float, nullable=True)
-    dominance: Mapped[float | None] = mapped_column(Float, nullable=True)
-    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    frustration: Mapped[float | None] = mapped_column(Float, nullable=True)
-    engagement: Mapped[float | None] = mapped_column(Float, nullable=True)
-    perceived_challenge: Mapped[float | None] = mapped_column(Float, nullable=True)
-    perceived_support: Mapped[float | None] = mapped_column(Float, nullable=True)
-    cognitive_load: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # PAD via 9-point SAM, integer [-4, +4] (nullable: unset = not answered).
+    pleasure: Mapped[int | None] = mapped_column(Integer, nullable=True)  # == valence
+    arousal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dominance: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Three independent task-related feeling intensities, integer 1..5 (1=Not at
+    # all .. 5=Very strong), asked alongside the SAM.
+    confusion: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    frustration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    boredom: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     raw_json: Mapped[str | None] = mapped_column(String, nullable=True)
     timestamp_utc: Mapped[str] = mapped_column(String, nullable=False)
@@ -132,9 +134,15 @@ class ParticipantSelfReport(Base):
             "before_after_robot_action IN ('before','after','na')",
             name="ck_self_reports_before_after",
         ),
+        # Range CHECKs for the seven active answers (NULL passes, so drafts elsewhere
+        # and partial rows are unaffected; a submitted row is fully validated too).
         *(
-            CheckConstraint(f"{f} BETWEEN -5 AND 5", name=f"ck_self_reports_{f}_range")
-            for f in _SLIDER_FIELDS
+            CheckConstraint(f"{c} BETWEEN -4 AND 4", name=f"ck_self_reports_{c}_range")
+            for c in _SAM_COLS
+        ),
+        *(
+            CheckConstraint(f"{c} BETWEEN 1 AND 5", name=f"ck_self_reports_{c}_range")
+            for c in _EMO_COLS
         ),
     )
 
@@ -178,16 +186,24 @@ class SelfReportDraft(Base):
         ForeignKey("dtt_trials.trial_id"), nullable=True
     )
 
-    # The nine bipolar sliders, continuous [-5, +5] (true-zero center).
-    pleasure: Mapped[float | None] = mapped_column(Float, nullable=True)
-    arousal: Mapped[float | None] = mapped_column(Float, nullable=True)
-    dominance: Mapped[float | None] = mapped_column(Float, nullable=True)
-    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    frustration: Mapped[float | None] = mapped_column(Float, nullable=True)
-    engagement: Mapped[float | None] = mapped_column(Float, nullable=True)
-    perceived_challenge: Mapped[float | None] = mapped_column(Float, nullable=True)
-    perceived_support: Mapped[float | None] = mapped_column(Float, nullable=True)
-    cognitive_load: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # SET A (simple form, or the child-behavior block of the rehearsal page):
+    # the 3 SAM dimensions (integer [-4, +4]) + the 3 task-feeling ratings (1..5).
+    pleasure: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    arousal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    dominance: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confusion: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    frustration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    boredom: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Rehearsal page only: the child-behavior checklist (JSON list) and SET B
+    # (how the participant handled the interaction): its SAM + feelings.
+    # NULL on a simple-form draft.
+    child_behaviors: Mapped[str | None] = mapped_column(String, nullable=True)
+    handling_pleasure: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    handling_arousal: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    handling_dominance: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    handling_confusion: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    handling_frustration: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    handling_boredom: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     raw_json: Mapped[str | None] = mapped_column(String, nullable=True)
     updated_at: Mapped[str] = mapped_column(String, nullable=False, default=now_utc_iso)
@@ -196,6 +212,16 @@ class SelfReportDraft(Base):
     __table_args__ = (
         UniqueConstraint(
             "session_id", "context_key", name="uq_self_report_drafts_session_context"
+        ),
+        # Same range CHECKs as the record table, for set A and set B. NULL passes,
+        # so partial autosave is unaffected.
+        *(
+            CheckConstraint(f"{c} BETWEEN -4 AND 4", name=f"ck_draft_{c}_range")
+            for c in _SAM_COLS + tuple(f"handling_{c}" for c in _SAM_COLS)
+        ),
+        *(
+            CheckConstraint(f"{c} BETWEEN 1 AND 5", name=f"ck_draft_{c}_range")
+            for c in _EMO_COLS + tuple(f"handling_{c}" for c in _EMO_COLS)
         ),
     )
 

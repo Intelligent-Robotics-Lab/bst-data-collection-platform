@@ -16,9 +16,11 @@
 questionnaire_key: rosas_child
 version: "1.0.0"
 title: "RoSAS - Child Robot"
+intro: "Think about the child robot you just worked with. For each word below, rate how well it describes that robot."
 timepoint: post
 scale_type: likert_7
 target: child_robot
+order_index: 11
 
 response_scale:
   type: likert
