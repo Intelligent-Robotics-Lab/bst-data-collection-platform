@@ -96,6 +96,80 @@ def test_missing_camera_blocks_when_recording_on(monkeypatch):
     assert "camera" in {c["id"] for c in report["blocking"]}
 
 
+# --- camera AVAILABILITY probe: the device can exist but be held by another
+#     process (a leftover ffmpeg); a mere existence check gave a false green.
+
+class _FakeProc:
+    def __init__(self, returncode=0, stderr=b""):
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+def _use_real_camera_probe(monkeypatch):
+    """Recording on, real (non-test) source, device path that exists so the probe
+    reaches the actual capture step."""
+    monkeypatch.setattr(settings, "RECORDING_ENABLED", True)
+    monkeypatch.setattr(settings, "RECORDING_USE_TEST_SOURCE", False)
+    monkeypatch.setattr(settings, "RECORDING_VIDEO_DEVICE", "/dev/null")  # exists on Linux
+    monkeypatch.setattr(settings, "PERCEPTION_ENABLED", False)
+
+
+def test_busy_camera_blocks_even_though_the_device_exists(monkeypatch):
+    """THE regression: the device file exists but a leftover ffmpeg holds it, so
+    the capture probe fails with EBUSY. Must be a blocking fail, not a green pass."""
+    _use_real_camera_probe(monkeypatch)
+    busy_err = (b"[video4linux2,v4l2 @ 0x1] Could not enqueue buffer\n"
+                b"[video4linux2,v4l2 @ 0x1] ioctl(VIDIOC_STREAMON): Device or resource busy\n")
+    monkeypatch.setattr(pf.subprocess, "run", lambda *a, **k: _FakeProc(1, busy_err))
+    report = pf.run_preflight()
+    cam = _by_id(report)["camera"]
+    assert cam["status"] == "fail" and cam["required"] is True
+    assert "busy" in cam["detail"].lower()
+    assert "camera" in {c["id"] for c in report["blocking"]}
+    assert report["ready"] is False
+
+
+def test_available_camera_passes_the_probe(monkeypatch):
+    _use_real_camera_probe(monkeypatch)
+    monkeypatch.setattr(pf.subprocess, "run", lambda *a, **k: _FakeProc(0, b"frame=1"))
+    cam = _by_id(pf.run_preflight())["camera"]
+    assert cam["status"] == "pass"
+    assert cam["label"] == "Camera available"
+
+
+def test_camera_probe_timeout_blocks(monkeypatch):
+    _use_real_camera_probe(monkeypatch)
+
+    def _timeout(*a, **k):
+        raise pf.subprocess.TimeoutExpired(cmd="ffmpeg", timeout=8)
+
+    monkeypatch.setattr(pf.subprocess, "run", _timeout)
+    cam = _by_id(pf.run_preflight())["camera"]
+    assert cam["status"] == "fail" and "timed out" in cam["detail"].lower()
+
+
+def test_missing_ffmpeg_blocks(monkeypatch):
+    _use_real_camera_probe(monkeypatch)
+
+    def _no_ffmpeg(*a, **k):
+        raise FileNotFoundError()
+
+    monkeypatch.setattr(pf.subprocess, "run", _no_ffmpeg)
+    cam = _by_id(pf.run_preflight())["camera"]
+    assert cam["status"] == "fail" and "ffmpeg not found" in cam["detail"].lower()
+
+
+def test_probe_camera_unit(monkeypatch):
+    """The probe helper directly: available vs busy vs absent."""
+    monkeypatch.setattr(pf.subprocess, "run", lambda *a, **k: _FakeProc(0, b""))
+    assert pf._probe_camera("/dev/null")[0] == "pass"
+    monkeypatch.setattr(pf.subprocess, "run",
+                        lambda *a, **k: _FakeProc(1, b"ioctl(VIDIOC_STREAMON): Device or resource busy"))
+    st, detail = pf._probe_camera("/dev/null")
+    assert st == "fail" and "busy" in detail.lower()
+    assert pf._probe_camera("/dev/does_not_exist_999")[0] == "fail"
+
+
 def test_perception_unreachable_blocks(monkeypatch):
     monkeypatch.setattr(settings, "RECORDING_ENABLED", True)
     monkeypatch.setattr(settings, "RECORDING_USE_TEST_SOURCE", True)
