@@ -66,6 +66,15 @@
     .qrow .qname { flex:1 1 auto; }
     .msg { min-height:1.2rem; font-size:.9rem; margin-top:.4rem; }
     .msg.err { color:var(--bad); } .msg.ok { color:var(--ok); }
+    /* attention checks */
+    .attn-phase { font-weight:700; margin:.7rem 0 .3rem; color:var(--muted); text-transform:uppercase; font-size:.75rem; letter-spacing:.04em; }
+    .attn-q { border:1px solid var(--line); border-radius:9px; padding:.5rem .6rem; margin-bottom:.5rem; }
+    .attn-qhead { display:flex; justify-content:space-between; align-items:center; gap:.6rem; margin-bottom:.4rem; }
+    .attn-choices { display:flex; flex-wrap:wrap; gap:.4rem; }
+    .attn-choice { border:1px solid var(--line); background:#fff; border-radius:8px; padding:.35rem .6rem; cursor:pointer; font-size:.9rem; text-align:left; }
+    .attn-choice:hover { border-color:var(--accent,#178); }
+    .attn-choice.ch-correct { border-color:var(--ok); background:#e8f7ef; font-weight:700; }
+    .attn-choice.ch-wrong { border-color:var(--bad); background:#fdecea; font-weight:700; }
     .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }
     @media (max-width:720px){ .grid2{ grid-template-columns:1fr; } }
     .big { font-size:1.5rem; font-weight:700; }
@@ -264,6 +273,14 @@
           <div class="fidwrap" id="fidelity-table" style="margin-top:.6rem;">—</div>
         </details>
       </div>
+
+      <!-- attention-check logging -->
+      <div class="card" id="attn-card">
+        <h2>Attention checks <span class="pill" id="attn-overall" style="margin-left:.4rem;">—</span></h2>
+        <p class="hint">Log whether the participant answered each instructional-stage comprehension question correctly. Auto-logged by the robot when available; select the participant's answer to log or correct any item.</p>
+        <div id="attn-list">—</div>
+        <div class="msg" id="attn-msg"></div>
+      </div>
     </section>
 
     <!-- STAGE 4: POST -->
@@ -408,7 +425,7 @@ function goStage(stg) {
   STAGES.forEach(x => $("stage-"+x).classList.toggle("hidden", x!==stg));
   renderHeader(); renderStepper();
   stopPoll(); stopQPoll();
-  if (stg==="live") { startPoll(); loadFidelity(); }
+  if (stg==="live") { startPoll(); loadFidelity(); loadAttentionChecks(); }
   if (stg==="onboarding") loadQuestionnaires("pre","pre-q","preq-msg");
   if (stg==="post") loadQuestionnaires("post","post-q","postq-msg");
   if (stg==="setup") loadPreflight();
@@ -870,6 +887,66 @@ async function completeFid(loop){
   S.fid.scores[loop]=c.data;
   setMsg("fidelity-msg","SD"+loop+" marked complete.","ok");
   renderFidLoops(); renderFidForm(); renderFidOverall(); renderFidTable();
+}
+
+// --- attention checks (instructional-stage comprehension logging) ----------
+async function loadAttentionChecks(){
+  if(!S.sid) return;
+  S.attn = S.attn || { questions:[], responses:{} };
+  const q = await api("GET","/attention-checks/questions");
+  if(q.ok) S.attn.questions = q.data || [];
+  const r = await api("GET","/sessions/"+encodeURIComponent(S.sid)+"/attention-checks");
+  const resp={}; if(r.ok){ (r.data||[]).forEach(row=> resp[row.question_id]=row); }
+  S.attn.responses = resp;
+  renderAttn(); renderAttnOverall();
+}
+
+function renderAttnOverall(){
+  const resp=S.attn.responses||{}, ids=Object.keys(resp);
+  const total=(S.attn.questions||[]).length;
+  const correct=ids.filter(id=>resp[id].is_correct).length;
+  const el=$("attn-overall");
+  el.textContent = ids.length ? (correct+"/"+ids.length+" correct · "+ids.length+"/"+total+" logged") : ("0/"+total+" logged");
+  el.className = "pill" + (ids.length===total && ids.length>0 ? " ok" : (ids.length>0 ? " warn" : ""));
+}
+
+function renderAttn(){
+  const box=$("attn-list"); const qs=S.attn.questions||[]; const resp=S.attn.responses||{};
+  if(!qs.length){ box.innerHTML='<p class="hint">No attention-check questions configured.</p>'; return; }
+  let html="";
+  [["instruction","Instruction"],["modeling","Modeling"]].forEach(([ph,label])=>{
+    const inPhase=qs.filter(q=>q.phase===ph);
+    if(!inPhase.length) return;
+    html+='<div class="attn-phase">'+label+'</div>';
+    inPhase.forEach(q=>{
+      const row=resp[q.question_id], answered=!!row;
+      const pill = answered
+        ? '<span class="pill '+(row.is_correct?"ok":"bad")+'">'+(row.is_correct?"correct":"incorrect")+'</span>'
+        : '<span class="pill">not logged</span>';
+      html+='<div class="attn-q"><div class="attn-qhead"><span>'+escapeHtml(q.text)+'</span>'+pill+'</div><div class="attn-choices">';
+      q.choices.forEach((c,i)=>{
+        const optNum=String(i+1);
+        const chosen = answered && String(row.participant_answer)===optNum;
+        const cls = chosen ? (row.is_correct ? " ch-correct" : " ch-wrong") : "";
+        html+='<button class="attn-choice'+cls+'" data-qid="'+q.question_id+'" data-opt="'+optNum+'">'+escapeHtml(c)+'</button>';
+      });
+      html+='</div></div>';
+    });
+  });
+  box.innerHTML=html;
+  box.querySelectorAll(".attn-choice").forEach(b=>{
+    b.onclick=()=>logAttn(b.getAttribute("data-qid"), b.getAttribute("data-opt"));
+  });
+}
+
+async function logAttn(question_id, answer){
+  if(!S.sid) return;
+  const r=await api("POST","/sessions/"+encodeURIComponent(S.sid)+"/attention-checks",
+    { question_id, participant_answer: answer, source:"manual", operator:"console" });
+  if(!r.ok){ setMsg("attn-msg","Log failed: "+r.error,"err"); return; }
+  S.attn.responses[question_id]=r.data;
+  setMsg("attn-msg","Logged "+question_id+" ("+(r.data.is_correct?"correct":"incorrect")+").","ok");
+  renderAttn(); renderAttnOverall();
 }
 
 function renderFidTable(){

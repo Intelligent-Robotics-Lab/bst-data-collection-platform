@@ -20,6 +20,7 @@ the timeline. Read-only: this module verifies state, it never changes it.
 from __future__ import annotations
 
 import shutil
+import subprocess
 from pathlib import Path
 
 from app.core.config import settings
@@ -67,13 +68,13 @@ def _recording_checks() -> list[dict]:
                              "RECORDING_USE_TEST_SOURCE=true (synthetic A/V)"))
         return checks
 
-    # Real capture: the camera device must exist.
-    device = settings.RECORDING_VIDEO_DEVICE
-    cam_ok = Path(device).exists()
+    # Real capture: the camera must be AVAILABLE, not merely present. A device
+    # file can exist while another process (e.g. a leftover ffmpeg) holds it, so
+    # a mere Path.exists() gives a false green -- exactly how a session once
+    # started against a busy camera. We do a real 1-frame capture probe instead.
+    status, detail = _probe_camera(settings.RECORDING_VIDEO_DEVICE)
     checks.append(_check(
-        "camera", "Camera present", "recording",
-        "pass" if cam_ok else "fail", required=True,
-        detail=(f"{device} present" if cam_ok else f"{device} not found"),
+        "camera", "Camera available", "recording", status, required=True, detail=detail,
     ))
 
     # Audio: best-effort. We can confirm the configured ALSA card is enumerated
@@ -82,6 +83,54 @@ def _recording_checks() -> list[dict]:
     # device still records video and is flagged 'failed' at stop.
     checks.append(_audio_check())
     return checks
+
+
+def _last_ffmpeg_error(stderr: bytes | None) -> str:
+    """The last non-empty line of ffmpeg's stderr (usually the actionable error)."""
+    text = (stderr or b"").decode("utf-8", errors="replace")
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    return lines[-1] if lines else "no ffmpeg output"
+
+
+def _probe_camera(device: str) -> tuple[str, str]:
+    """Verify the camera is actually USABLE: present AND openable/streamable with
+    the configured capture params. Grabs a single frame with ffmpeg; a device held
+    by another process fails at VIDIOC_STREAMON with EBUSY, which a plain
+    Path.exists() would miss. Returns (status, detail). The probe releases the
+    device immediately after one frame, so it never blocks the real recording."""
+    if not Path(device).exists():
+        return "fail", f"{device} not found"
+    s = settings
+    cmd = [
+        s.RECORDING_FFMPEG_BIN, "-hide_banner", "-nostdin",
+        "-f", s.RECORDING_VIDEO_INPUT_FORMAT,
+        "-input_format", s.RECORDING_VIDEO_INPUT_PIXEL,
+        "-video_size", s.RECORDING_VIDEO_SIZE,
+        "-framerate", str(s.RECORDING_FRAMERATE),
+        "-i", device,
+        "-frames:v", "1", "-f", "null", "-",
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            timeout=s.PREFLIGHT_CAMERA_PROBE_S,
+        )
+    except FileNotFoundError:
+        return "fail", f"ffmpeg not found ('{s.RECORDING_FFMPEG_BIN}'); cannot verify or record"
+    except subprocess.TimeoutExpired:
+        return "fail", (
+            f"{device} capture probe timed out after {s.PREFLIGHT_CAMERA_PROBE_S:.0f}s "
+            "(device likely busy / held by another process)"
+        )
+    if proc.returncode == 0:
+        return "pass", f"{device} available (captured a test frame at {s.RECORDING_VIDEO_SIZE})"
+    err = _last_ffmpeg_error(proc.stderr)
+    busy = any(k in err.lower() for k in ("busy", "resource", "in use", "cannot open", "device"))
+    hint = " -- likely held by another process (e.g. a leftover ffmpeg)" if busy else ""
+    return "fail", f"{device} present but capture FAILED: {err}{hint}"
 
 
 def _audio_check() -> dict:

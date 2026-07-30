@@ -112,6 +112,10 @@ class Settings(BaseSettings):
     # thresholds the real checks use.
     PREFLIGHT_MIN_FREE_GB: float = 5.0  # recordings mount must have at least this free
     PREFLIGHT_TABLET_STALE_S: float = 15.0  # tablet "connected" if it polled within this
+    # The camera preflight check does a real 1-frame capture probe (not just a
+    # "does /dev/video0 exist" test) so a device HELD by another process -- e.g. a
+    # leftover ffmpeg -- is caught. This bounds that probe.
+    PREFLIGHT_CAMERA_PROBE_S: float = 8.0
 
     @property
     def db_path(self) -> Path:

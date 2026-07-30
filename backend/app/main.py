@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api import (
+    attention_checks,
     exports,
     fidelity,
     finish,
@@ -107,6 +108,8 @@ app.include_router(sync.router)
 app.include_router(launch.router)
 app.include_router(tablet.router)
 app.include_router(fidelity.router)
+app.include_router(attention_checks.router)
+app.include_router(attention_checks.questions_router)
 app.include_router(finish.router)
 app.include_router(preflight.router)
 app.include_router(progress.router)

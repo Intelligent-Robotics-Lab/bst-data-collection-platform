@@ -34,6 +34,7 @@ from app.models.system import (
 from app.models.sync import SyncGate
 from app.models.launch import SessionLaunch
 from app.models.fidelity import FidelityScore
+from app.models.attention_check import AttentionCheckResponse
 
 __all__ = [
     "Base",
@@ -71,4 +72,6 @@ __all__ = [
     "SessionLaunch",
     # fidelity (operator console v3)
     "FidelityScore",
+    # attention checks
+    "AttentionCheckResponse",
 ]
