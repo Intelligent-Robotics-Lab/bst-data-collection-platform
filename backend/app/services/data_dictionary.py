@@ -269,6 +269,23 @@ is a blind ground truth for later validation.
   error_correction, other); `notes` - optional free text.
 - `status` - `draft` | `complete`; `scored_by`; `created_at`, `updated_at`.
 
+### attention_check_responses.csv
+Whether the participant answered each instructional-stage attention-check
+(comprehension) question correctly. Questions come from the robot codebase
+(mirrored in `configs/attention_checks.yaml`): 5 in `instruction`, 7 in
+`modeling`, none in `tutorial`. One current row per (session, question).
+- `session_id`, `question_id` - unique together; `question_id` e.g. `instruction_1`.
+- `phase` - `instruction` | `modeling` (the stage the question belongs to).
+- `question_text`, `correct_answer` (option number 1..3) - denormalized from the
+  config so the row is self-describing; `participant_answer` - what they gave
+  (option number or spoken/typed text).
+- `is_correct` - **1** correct / **0** incorrect, computed by the platform from
+  the answer vs the config's correct option + accepted forms (NOT trusted from
+  the caller).
+- `source` - `auto` (robot-reported) | `manual` (administrator-logged in the
+  console); `operator`; `notes`; `raw_json` (choices + accepted answers snapshot).
+- `timestamp_utc`, `session_time_ms`, `created_at`, `updated_at`.
+
 ### perception_events.jsonl
 One JSON object per line; one row per perception poll. Outages are data, not gaps
 (a failed poll writes a row with `connection_status='down'` and null payload).

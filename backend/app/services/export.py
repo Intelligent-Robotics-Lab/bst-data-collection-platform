@@ -32,6 +32,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.timeutil import now_utc
 from app.models.dtt import DttLoop, DttPerformanceEvent, DttTrial
+from app.models.attention_check import AttentionCheckResponse
 from app.models.fidelity import FidelityScore
 from app.models.participant import Participant
 from app.models.questionnaire import QuestionnaireResponse, QuestionnaireScore
@@ -181,6 +182,15 @@ def _write_raw_dumps(db: Session, session: StudySession, out: Path) -> tuple[lis
         .order_by(FidelityScore.loop_index)
     ).all()
     csv_dump("fidelity_scores.csv", FidelityScore, fidelity)
+
+    # attention_check_responses: whether the participant answered each
+    # instructional-stage comprehension question correctly (auto + admin logs).
+    attention = db.scalars(
+        select(AttentionCheckResponse)
+        .where(AttentionCheckResponse.session_id == sid)
+        .order_by(AttentionCheckResponse.attention_check_id)
+    ).all()
+    csv_dump("attention_check_responses.csv", AttentionCheckResponse, attention)
 
     # perception_events: JSONL, raw_payload parsed back to nested JSON
     perception = db.scalars(
@@ -351,7 +361,39 @@ def _write_analysis_frames(db: Session, session: StudySession, out: Path) -> lis
         sr_rows,
     )
 
-    return ["analysis_trials.csv", "analysis_self_reports.csv"]
+    # analysis_attention_checks: each logged comprehension answer + session factors
+    ac_raw = [
+        "attention_check_id", "session_id", "participant_id", "phase", "question_id",
+        "question_text", "correct_answer", "participant_answer", "is_correct",
+        "source", "operator", "timestamp_utc", "session_time_ms",
+    ]
+    attention = db.scalars(
+        select(AttentionCheckResponse)
+        .where(AttentionCheckResponse.session_id == sid)
+        .order_by(AttentionCheckResponse.attention_check_id)
+    ).all()
+    ac_rows = []
+    for a in attention:
+        row = {c: getattr(a, c) for c in ac_raw}
+        row.update(
+            {
+                "session__support_condition": support,
+                "session__pb_order_group": group,
+                "derived__support_label": support_label,
+            }
+        )
+        ac_rows.append(row)
+    _write_csv(
+        out / "analysis_attention_checks.csv",
+        ac_raw + ["session__support_condition", "session__pb_order_group", "derived__support_label"],
+        ac_rows,
+    )
+
+    return [
+        "analysis_trials.csv",
+        "analysis_self_reports.csv",
+        "analysis_attention_checks.csv",
+    ]
 
 
 # --- orchestration -----------------------------------------------------------

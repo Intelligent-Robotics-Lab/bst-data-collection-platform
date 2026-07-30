@@ -1,0 +1,149 @@
+# Attention-check (comprehension) questions the robot asks the participant during
+# the instructional stages, mirrored VERBATIM from the bst-study robot codebase
+# (data/instruction_data.json + data/modeling_data.json, the `question` blocks).
+#
+# The robot presents these mid-stage to verify the participant is following along;
+# our platform logs whether each was answered correctly (automated via the robot,
+# or by the research administrator in the console). The tutorial stage has no
+# attention checks. `correct_answer` is the option number (1..3); `accepted_answers`
+# are the normalized spoken/typed forms the robot accepts as correct (used, along
+# with the option number, to score a free-text answer). Question text/choices are
+# kept verbatim (including the source's minor typos) so the log matches exactly
+# what the participant was shown.
+version: "1.0.0"
+source: "bst-study: data/instruction_data.json, data/modeling_data.json"
+
+questions:
+  # --- Instruction stage (5) ---
+  - question_id: instruction_1
+    phase: instruction
+    order: 1
+    text: "What are we learning about today?"
+    choices:
+      - "Option 1. Structured teaching interactions."
+      - "Option 2. Robot programming."
+      - "Option 3. System setup."
+    correct_answer: "1"
+    accepted_answers: ["one", "1", "first", "teaching", "interactions", "structured"]
+
+  - question_id: instruction_2
+    phase: instruction
+    order: 2
+    text: "In a teaching interaction, what happens before the learner responds?"
+    choices:
+      - "Option 1. Reinforcement."
+      - "Option 2. Feedback."
+      - "Option 3. The instruction."
+    correct_answer: "3"
+    accepted_answers: ["three", "3", "third", "instruction"]
+
+  - question_id: instruction_3
+    phase: instruction
+    order: 3
+    text: "What should happen first after an incorrect response?"
+    choices:
+      - "Option 1. Skip to the next SD."
+      - "Option 2. Prompt the learner."
+      - "Option 3. End the interaction."
+    correct_answer: "2"
+    accepted_answers: ["2", "two", "to", "too", "second", "prompt", "prompting"]
+
+  - question_id: instruction_4
+    phase: instruction
+    order: 4
+    text: "Why is reinforcement important during teaching?"
+    choices:
+      - "Option 1. It replaces instructions."
+      - "Option 2. It encourages future correct responses."
+      - "Option 3. It ends the interaction."
+    correct_answer: "2"
+    accepted_answers: ["2", "two", "to", "too", "second", "responses", "encourages", "future"]
+
+  - question_id: instruction_5
+    phase: instruction
+    order: 5
+    text: "If the learner responds correctly, what happens next?"
+    choices:
+      - "Option 1. Reinforcement only."
+      - "Option 2. Prompting and error correction."
+      - "Option 3. End the trial."
+    correct_answer: "1"
+    accepted_answers: ["1", "one", "first", "reinforce", "reinforcement"]
+
+  # --- Modeling stage (7) ---
+  - question_id: modeling_1
+    phase: modeling
+    order: 1
+    text: "What should you mainly focus on during modeling?"
+    choices:
+      - "Option 1. The system setup."
+      - "Option 2. The interaction flow."
+      - "Option 3. The robot's appearance."
+    correct_answer: "2"
+    accepted_answers: ["2", "two", "second", "interaction", "flow"]
+
+  - question_id: modeling_2
+    phase: modeling
+    order: 2
+    text: "What was the purpose of this interaction?"
+    choices:
+      - "Option 1. To practice imitation."
+      - "Option 2. Correct an error."
+      - "Option 3. Identify a preferred item or activity."
+    correct_answer: "3"
+    accepted_answers: ["3", "three", "third", "preferred", "identify"]
+
+  - question_id: modeling_3
+    phase: modeling
+    order: 3
+    text: "What made this an imitative SD?"
+    choices:
+      - "Option 1. The learner labeled an object."
+      - "Option 2. The learner identified an emotion."
+      - "Option 3. The learner copied an action."
+    correct_answer: "3"
+    accepted_answers: ["3", "three", "third", "copied", "action"]
+
+  - question_id: modeling_4
+    phase: modeling
+    order: 4
+    text: "Why was prompting used here?"
+    choices:
+      - "Option 1. The learner did not respond."
+      - "Option 2. The learner responded corectly."
+      - "Option 3. The interaction ended."
+    correct_answer: "1"
+    accepted_answers: ["1", "one", "first"]
+
+  - question_id: modeling_5
+    phase: modeling
+    order: 5
+    text: "What skill was the learner demonstrating in this example?"
+    choices:
+      - "Option 1. Identifying an emotionn."
+      - "Option 2. Labeling an object."
+      - "Option 3. Following an instruction."
+    correct_answer: "2"
+    accepted_answers: ["2", "two", "to", "too", "second", "labeling"]
+
+  - question_id: modeling_6
+    phase: modeling
+    order: 6
+    text: "What was the learner identifying in this example?"
+    choices:
+      - "Option 1. An emotion."
+      - "Option 2. An object."
+      - "Option 3. A preferred item."
+    correct_answer: "1"
+    accepted_answers: ["1", "one", "first", "emotion"]
+
+  - question_id: modeling_7
+    phase: modeling
+    order: 7
+    text: "After reinforcement during error correction, what should happen next?"
+    choices:
+      - "Option 1. End the interaction."
+      - "Option 2. Repeat the original instruction."
+      - "Option 3. Perform a high-probability SD."
+    correct_answer: "3"
+    accepted_answers: ["3", "three", "third", "high probability"]
